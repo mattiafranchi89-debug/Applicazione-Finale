@@ -104,8 +104,18 @@ npm run preview
 - **Server Port**: 5000 (required for Replit)
 - **Host**: 0.0.0.0 (allows external connections)
 - **HMR**: Configured for Replit's proxy environment
+- **Deployment**: Configured with autoscale deployment (build + preview)
+- **Workflow**: Server workflow running `npm run dev` on port 5000
 
 ## Recent Changes
+- **Oct 8, 2025**: GitHub Import Setup Completed
+  - Successfully imported GitHub repository to Replit
+  - Installed all npm dependencies (174 packages)
+  - Created .gitignore for Node.js/Replit environment
+  - Updated vite.config.ts to remove restrictive allowedHosts (now accepts all hosts)
+  - Configured Server workflow for development (npm run dev on port 5000)
+  - Configured deployment settings (autoscale with build and preview)
+  - Verified app is running correctly with login page displaying
 - **Oct 8, 2025**: Call-Up Only Players & Inverted Training Attendance
   - Implemented call-up only logic for 2009 players:
     - Players born in 2009 can be added to the roster but only for match call-ups
