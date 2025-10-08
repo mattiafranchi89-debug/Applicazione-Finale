@@ -222,6 +222,62 @@ export default function App(){
     return Math.round(present/total*100); 
   };
 
+  const exportTrainingsCSV = () => {
+    const csvRows = [];
+    csvRows.push(['Giocatore', 'Nome', 'Cognome', ...trainings.flatMap(w => w.sessions.map(s => `${w.week} - ${s.day} (${s.date})`))].join(','));
+    
+    trainingEligiblePlayers.forEach(player => {
+      const row = [player.number, player.firstName, player.lastName];
+      trainings.forEach(week => {
+        week.sessions.forEach(session => {
+          const absent = session.attendance[player.id] === true;
+          row.push(absent ? 'Assente' : 'Presente');
+        });
+      });
+      csvRows.push(row.join(','));
+    });
+    
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `presenze_allenamenti_${new Date().toISOString().slice(0,10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportMatchStatsCSV = () => {
+    const csvRows = [];
+    csvRows.push(['Nome', 'Cognome', 'Ruolo', 'Anno', 'Gol', 'Minuti Totali', '% Presenze Allenamenti'].join(','));
+    
+    [...players].sort((a,b)=>a.firstName.localeCompare(b.firstName)).forEach(player => {
+      const row = [
+        player.firstName,
+        player.lastName,
+        player.position,
+        player.birthYear,
+        player.goals,
+        getPlayerTotalMinutes(player.id),
+        getPlayerAttendancePercent(player.id)
+      ];
+      csvRows.push(row.join(','));
+    });
+    
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `statistiche_giocatori_${new Date().toISOString().slice(0,10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleLogin = (username: string, password: string): boolean => {
     const user = authData.users.find(u => u.username === username && u.password === password);
     if (user) {
@@ -308,9 +364,9 @@ Calzettoni blu`; window.open(`https://wa.me/?text=${encodeURIComponent(m)}`,'_bl
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
         {activeTab==='dashboard' && <Dashboard totalPlayers={players.length} totalMatches={playedMatches} totalGoals={totalGoals} players={players}/>}
-        {activeTab==='players' && <PlayersTab players={players} setPlayers={setPlayers} getPlayerTotalMinutes={getPlayerTotalMinutes} getPlayerAttendancePercent={getPlayerAttendancePercent}/>}
+        {activeTab==='players' && <PlayersTab players={players} setPlayers={setPlayers} getPlayerTotalMinutes={getPlayerTotalMinutes} getPlayerAttendancePercent={getPlayerAttendancePercent} exportMatchStatsCSV={exportMatchStatsCSV}/>}
         {activeTab==='trainings' && (
-          <TrainingsTab players={trainingEligiblePlayers} trainings={trainings} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} toggleAttendance={toggleAttendance} addNewWeek={addNewWeek} getPlayerWeekStats={getPlayerWeekStats}/>
+          <TrainingsTab players={trainingEligiblePlayers} trainings={trainings} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} toggleAttendance={toggleAttendance} addNewWeek={addNewWeek} getPlayerWeekStats={getPlayerWeekStats} exportTrainingsCSV={exportTrainingsCSV}/>
         )}
         {activeTab==='callup' && (
           <CallUpTab players={players} matches={matches} callUpData={callUpData} setCallUpData={setCallUpData} togglePlayerCallUp={togglePlayerCallUp} sendWhatsApp={sendWhatsApp} getPlayerWeekStats={getPlayerWeekStats} formation={formation} setFormation={setFormation}/>
@@ -349,7 +405,7 @@ function Dashboard({totalPlayers,totalMatches,totalGoals,players}:{totalPlayers:
   </>);
 }
 
-function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendancePercent}:{players:Player[]; setPlayers:React.Dispatch<React.SetStateAction<Player[]>>; getPlayerTotalMinutes:(id:number)=>number; getPlayerAttendancePercent:(id:number)=>number}){
+function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendancePercent,exportMatchStatsCSV}:{players:Player[]; setPlayers:React.Dispatch<React.SetStateAction<Player[]>>; getPlayerTotalMinutes:(id:number)=>number; getPlayerAttendancePercent:(id:number)=>number; exportMatchStatsCSV:()=>void}){
   const [showAdd,setShowAdd]=useState(false); const [form,setForm]=useState<Partial<Player>>({position:'Attaccante',birthYear:2007});
   const addPlayer=()=>{ if(!form.firstName||!form.lastName) return; const autoNumber = players.length > 0 ? Math.max(...players.map(p => p.number)) + 1 : 1; setPlayers(prev=>[...prev,{ id: prev.length? Math.max(...prev.map(p=>p.id))+1:1, firstName:form.firstName!, lastName:form.lastName!, number:autoNumber, position:(form.position??'Attaccante') as Player['position'], goals:0, presences:0, birthYear:Number(form.birthYear??2007) }]); setForm({position:'Attaccante',birthYear:2007}); setShowAdd(false); };
   const deletePlayer=(id:number)=> setPlayers(prev=>prev.filter(p=>p.id!==id));
@@ -358,7 +414,7 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
   const callUpOnlyPlayers = players.filter(p => p.birthYear === 2009);
   
   return (<section className="space-y-6">
-    <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Rosa Giocatori</h2><button className="btn btn-primary" onClick={()=>setShowAdd(s=>!s)}><UserPlus size={18}/>Aggiungi Giocatore</button></div>
+    <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Rosa Giocatori</h2><div className="flex gap-2"><button className="btn btn-primary" onClick={exportMatchStatsCSV}>📊 Esporta Statistiche CSV</button><button className="btn btn-primary" onClick={()=>setShowAdd(s=>!s)}><UserPlus size={18}/>Aggiungi Giocatore</button></div></div>
     {showAdd && (<div className="card grid sm:grid-cols-4 gap-3">
       <div><label className="text-sm text-gray-600">Nome</label><input className="w-full border rounded-lg px-3 py-2" value={form.firstName??''} onChange={e=>setForm(f=>({...f, firstName:e.target.value}))}/></div>
       <div><label className="text-sm text-gray-600">Cognome</label><input className="w-full border rounded-lg px-3 py-2" value={form.lastName??''} onChange={e=>setForm(f=>({...f, lastName:e.target.value}))}/></div>
@@ -379,7 +435,7 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
   </section>);
 }
 
-function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggleAttendance, addNewWeek, getPlayerWeekStats }:{ players:Player[]; trainings:TrainingWeek[]; selectedWeek:number; setSelectedWeek:(n:number)=>void; toggleAttendance:(playerId:number,sessionIndex:number)=>void; addNewWeek:()=>void; getPlayerWeekStats:(playerId:number)=>{present:number; total:number; percentage:number} }){
+function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggleAttendance, addNewWeek, getPlayerWeekStats, exportTrainingsCSV }:{ players:Player[]; trainings:TrainingWeek[]; selectedWeek:number; setSelectedWeek:(n:number)=>void; toggleAttendance:(playerId:number,sessionIndex:number)=>void; addNewWeek:()=>void; getPlayerWeekStats:(playerId:number)=>{present:number; total:number; percentage:number}; exportTrainingsCSV:()=>void }){
   const week = trainings.find(w=>w.id===selectedWeek);
   
   const closeTraining = (sessionIndex: number) => {
@@ -398,6 +454,9 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
           {trainings.map(t=> <option key={t.id} value={t.id}>{t.week}</option>) }
         </select>
       </div>
+    </div>
+    <div className="card">
+      <button className="btn btn-primary" onClick={exportTrainingsCSV}>📊 Esporta Presenze CSV</button>
     </div>
 
     {week && week.sessions.map((s,idx)=>(
