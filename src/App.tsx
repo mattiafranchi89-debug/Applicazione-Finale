@@ -585,9 +585,7 @@ function MatchDetailModal({match,players,onClose,onSave}:{match:Match; players:P
           <button className="btn btn-primary" onClick={()=>addGoal('SEGURO')}><Plus size={16}/> Goal Seguro</button>
           <button className="btn btn-primary" onClick={()=>addGoal('AVVERSARI')}><Plus size={16}/> Goal Avversari</button>
           <button className="btn btn-primary" onClick={()=>addCard('YELLOW','SEGURO')}><Plus size={16}/> Ammonizione Seguro</button>
-          <button className="btn btn-primary" onClick={()=>addCard('YELLOW','AVVERSARI')}><Plus size={16}/> Ammonizione Avv.</button>
           <button className="btn btn-primary" onClick={()=>addCard('RED','SEGURO')}><Plus size={16}/> Espulsione Seguro</button>
-          <button className="btn btn-primary" onClick={()=>addCard('RED','AVVERSARI')}><Plus size={16}/> Espulsione Avv.</button>
           <button className="btn btn-primary" onClick={addSub}><Plus size={16}/> Sostituzione</button>
         </div>
         <div className="card"><h3 className="font-semibold mb-2">Eventi</h3>{local.events.length===0 && <div className="text-sm text-gray-600">Nessun evento aggiunto.</div>}<div className="space-y-2">{local.events.map(ev=> (<div key={ev.id} className="border rounded-lg p-3"><div className="flex items-center gap-2 text-sm mb-2"><span className={`badge ${ev.type==='GOAL'?'bg-green-100 text-green-700': ev.type==='SUB'?'bg-blue-100 text-blue-700': ev.type==='YELLOW'?'bg-yellow-100 text-yellow-800':'bg-red-100 text-red-700'}`}>{labelForEvent(ev)}</span><span className="text-gray-500">{ev.team}</span></div><EventEditor ev={ev} players={players} onChange={(patch)=>updateEvent(ev.id, patch)} onRemove={()=>removeEvent(ev.id)}/></div>))}</div></div>
