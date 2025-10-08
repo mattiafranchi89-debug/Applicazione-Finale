@@ -136,6 +136,24 @@ export default function App(){
   useEffect(()=>{ try{localStorage.setItem(LS_KEYS.formation, JSON.stringify(formation))}catch{} },[formation]);
   useEffect(()=>{ try{localStorage.setItem(LS_KEYS.auth, JSON.stringify(authData))}catch{} },[authData]);
 
+  useEffect(() => {
+    const goalsByPlayer: Record<number, number> = {};
+    matches.forEach(match => {
+      if (match.events) {
+        match.events.forEach(event => {
+          if (event.type === 'GOAL' && event.team === 'SEGURO' && (event as any).playerId) {
+            const playerId = (event as any).playerId;
+            goalsByPlayer[playerId] = (goalsByPlayer[playerId] || 0) + 1;
+          }
+        });
+      }
+    });
+    setPlayers(prev => prev.map(player => ({
+      ...player,
+      goals: goalsByPlayer[player.id] || 0
+    })));
+  }, [matches]);
+
   const totalGoals = useMemo(()=>players.reduce((s,p)=>s+p.goals,0),[players]);
   const playedMatches = useMemo(()=>matches.filter(m=>!!m.result).length,[matches]);
 
