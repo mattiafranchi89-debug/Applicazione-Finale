@@ -137,6 +137,11 @@ export default function App(){
   useEffect(()=>{ try{localStorage.setItem(LS_KEYS.auth, JSON.stringify(authData))}catch{} },[authData]);
 
   useEffect(() => {
+    const hasGoalEvents = matches.some(match => 
+      match.events?.some(event => event.type === 'GOAL' && event.team === 'SEGURO')
+    );
+    if (!hasGoalEvents) return;
+    
     const goalsByPlayer: Record<number, number> = {};
     matches.forEach(match => {
       if (match.events) {
