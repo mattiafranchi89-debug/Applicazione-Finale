@@ -32,8 +32,9 @@ A comprehensive React-based web application for managing a U19 soccer team. The 
 - Next match information
 
 ### 2. Player Management
-- Add/remove players
-- Track player statistics (goals, assists, minutes played)
+- Add/remove players with separate first name and last name fields
+- Track player statistics (goals, minutes played)
+- **Automatic goal tracking**: Goals are automatically updated from match events
 - Monitor training attendance percentage
 - Player categorization by birth year:
   - 2005-2006: Older players (max 4 in call-ups)
@@ -108,6 +109,18 @@ npm run preview
 - **Workflow**: Server workflow running `npm run dev` on port 5000
 
 ## Recent Changes
+- **Oct 8, 2025**: Player Data Structure & Automatic Goal Tracking
+  - **Player Name Split**: Player names now separated into firstName and lastName
+    - Player table shows separate "Nome" (first name) and "Cognome" (last name) columns
+    - Add player form requires separate input for first and last name
+    - All UI components updated to display names correctly
+  - **Removed Assists Tracking**: Assists column removed from player statistics
+  - **Automatic Goal Updates**: Player goal counts automatically sync with match events
+    - When GOAL events are added to matches for Seguro players, goal counts update automatically
+    - System only updates when actual GOAL events exist (preserves initial data)
+    - Goal tallies calculated from all match events where team='SEGURO' and playerId is specified
+  - All WhatsApp messages, formation builder, and event editors updated with new name format
+
 - **Oct 8, 2025**: GitHub Import Setup Completed
   - Successfully imported GitHub repository to Replit
   - Installed all npm dependencies (174 packages)
