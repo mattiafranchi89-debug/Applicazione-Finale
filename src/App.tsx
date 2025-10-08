@@ -215,7 +215,7 @@ export default function App(){
 `; m+=`🗋 CONVOCATI
 
 `; Object.entries(grouped).forEach(([role,list])=>{ if(!list.length) return; m+=`${role}
-`; list.forEach(p=>{ m+=`${numberEmojis[c]} ${p.name}
+`; list.forEach(p=>{ m+=`${numberEmojis[c]} ${p.firstName} ${p.lastName}
 `; c++; }); m+=`
 `; }); m+=`⚠️ IMPORTANTE: Portare documento di identità! ⚠️
 
@@ -294,7 +294,7 @@ function Dashboard({totalPlayers,totalMatches,totalGoals,players}:{totalPlayers:
       <div className="card flex items-center justify-between"><div><p className="text-sm text-gray-500">Partite Giocate</p><p className="text-2xl font-bold">{totalMatches}</p></div><Calendar className="text-blue-600"/></div>
       <div className="card flex items-center justify-between"><div><p className="text-sm text-gray-500">Gol Totali</p><p className="text-2xl font-bold">{totalGoals}</p></div><Award className="text-blue-600"/></div>
     </section>
-    <section className="card"><h2 className="text-lg font-semibold mb-3">Top Marcatori</h2><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{topScorers.map((p,idx)=>(<div key={p.id} className="flex items-center justify-between bg-gray-50 rounded p-3"><div><div className="text-sm text-gray-500">#{idx+1}</div><div className="font-semibold">{p.name}</div><div className="text-sm text-gray-500">{p.position}</div></div><div className="text-right"><div className="text-2xl font-bold">{p.goals}</div><div className="text-xs text-gray-500">gol</div></div></div>))}</div><div className="mt-4 text-sm text-gray-600">Prossima Partita: <b>{nextMatchDate}</b></div></section>
+    <section className="card"><h2 className="text-lg font-semibold mb-3">Top Marcatori</h2><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{topScorers.map((p,idx)=>(<div key={p.id} className="flex items-center justify-between bg-gray-50 rounded p-3"><div><div className="text-sm text-gray-500">#{idx+1}</div><div className="font-semibold">{p.firstName} {p.lastName}</div><div className="text-sm text-gray-500">{p.position}</div></div><div className="text-right"><div className="text-2xl font-bold">{p.goals}</div><div className="text-xs text-gray-500">gol</div></div></div>))}</div><div className="mt-4 text-sm text-gray-600">Prossima Partita: <b>{nextMatchDate}</b></div></section>
   </>);
 }
 
@@ -366,7 +366,7 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
           {players.map(pl=>{ const absent = s.attendance[pl.id]===true; return (
             <button key={pl.id} onClick={()=>toggleAttendance(pl.id,idx)} className={`p-3 rounded-lg border-2 text-left transition ${absent?'bg-red-50 border-red-400 hover:bg-red-100':'bg-green-50 border-green-400 hover:bg-green-100'}`}>
               <div className="flex items-center gap-2">{absent?<XCircle className="text-red-600"/>:<CheckCircle className="text-green-600"/>}<span className="text-sm text-gray-500">N° {pl.number}</span></div>
-              <div className="font-medium">{pl.name}</div>
+              <div className="font-medium">{pl.firstName} {pl.lastName}</div>
             </button>
           );})}
         </div>
@@ -381,7 +381,7 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
     <div className="card">
       <h3 className="font-semibold mb-2">📈 Statistiche Settimana</h3>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-        {players.map(pl=>{ const st=getPlayerWeekStats(pl.id); return <div key={pl.id} className="bg-gray-50 rounded p-3"><div className="font-medium">{pl.name} <span className="text-xs text-gray-500">N° {pl.number}</span></div><div className="text-sm text-gray-600">{st.present}/{st.total} — {st.percentage}%</div></div>; })}
+        {players.map(pl=>{ const st=getPlayerWeekStats(pl.id); return <div key={pl.id} className="bg-gray-50 rounded p-3"><div className="font-medium">{pl.firstName} {pl.lastName} <span className="text-xs text-gray-500">N° {pl.number}</span></div><div className="text-sm text-gray-600">{st.present}/{st.total} — {st.percentage}%</div></div>; })}
       </div>
     </div>
   </section>);
@@ -451,7 +451,7 @@ function CallUpTab({ players, matches, callUpData, setCallUpData, togglePlayerCa
       {players.map(p=>{ const isSel=callUpData.selectedPlayers.includes(p.id); const st=getPlayerWeekStats(p.id); return (
         <button key={p.id} onClick={()=>togglePlayerCallUp(p.id)} className={`p-4 rounded-lg border-2 text-left transition ${isSel?'bg-blue-50 border-blue-500':'bg-gray-50 border-gray-300 hover:bg-gray-100'}`}>
           <div className="flex items-center justify-between"><span className="text-sm text-gray-500">N° {p.number}</span><span className={`badge ${p.birthYear<=2006?'bg-orange-100 text-orange-700':'bg-gray-100 text-gray-700'}`}>{p.birthYear}</span></div>
-          <div className="font-semibold">{p.name}</div>
+          <div className="font-semibold">{p.firstName} {p.lastName}</div>
           <div className="text-sm text-gray-600">{p.position}</div>
           <div className="text-xs text-gray-500 mt-1">Presenze settimana: {st.present}/{st.total} ({st.percentage}%)</div>
           {isSel && <div className="mt-2 text-blue-600 text-sm font-medium">Selezionato</div>}
@@ -554,7 +554,7 @@ function MatchDetailModal({match,players,onClose,onSave}:{match:Match; players:P
                 {players.map(p=> (
                   <label key={p.id} className={`flex items-center gap-2 p-2 border rounded-lg cursor-pointer ${starters.includes(p.id)?'bg-blue-50 border-blue-400':'bg-gray-50 border-gray-300'}`}>
                     <input type="checkbox" checked={starters.includes(p.id)} onChange={()=>toggleStarter(p.id)} />
-                    <span className="text-sm">{p.number} — {p.name}</span>
+                    <span className="text-sm">{p.number} — {p.firstName} {p.lastName}</span>
                   </label>
                 ))}
               </div>
@@ -570,7 +570,7 @@ function MatchDetailModal({match,players,onClose,onSave}:{match:Match; players:P
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {players.map(p => (
               <div key={p.id} className="flex items-center gap-2">
-                <label className="w-36 text-sm text-gray-700">{p.number} — {p.name}</label>
+                <label className="w-36 text-sm text-gray-700">{p.number} — {p.firstName} {p.lastName}</label>
                 <input type="number" min={0} max={130} className="w-24 border rounded-lg px-2 py-1"
                   value={local.minutes?.[p.id] ?? ''}
                   onChange={e => {
@@ -593,9 +593,9 @@ function labelForEvent(ev:MatchEvent){ switch(ev.type){ case 'GOAL': return 'Goa
 function EventEditor({ev,players,onChange,onRemove}:{ev:MatchEvent; players:Player[]; onChange:(patch:Partial<MatchEvent>)=>void; onRemove:()=>void}){
   return (<div className="grid sm:grid-cols-4 gap-2 items-end">
     <div><label className="text-sm text-gray-600">Min.</label><input type="number" min={0} max={130} className="w-full border rounded-lg px-3 py-2" value={(ev as any).minute??0} onChange={e=>onChange({minute:Number((e.target as HTMLInputElement).value)} as any)}/></div>
-    {ev.type==='GOAL' && (<><div><label className="text-sm text-gray-600">Squadra</label><select className="w-full border rounded-lg px-3 py-2" value={ev.team} onChange={e=>onChange({team:(e.target as HTMLSelectElement).value as any})}><option value="SEGURO">SEGURO</option><option value="AVVERSARI">AVVERSARI</option></select></div><div><label className="text-sm text-gray-600">Giocatore (facolt.)</label><select className="w-full border rounded-lg px-3 py-2" value={(ev as any).playerId??''} onChange={e=>onChange({playerId:(e.target as HTMLSelectElement).value?Number((e.target as HTMLSelectElement).value):undefined} as any)}><option value="">—</option>{players.map(p=> <option key={p.id} value={p.id}>{p.number} — {p.name}</option>)}</select></div><div><label className="text-sm text-gray-600">Note</label><input className="w-full border rounded-lg px-3 py-2" value={(ev as any).note??''} onChange={e=>onChange({note:(e.target as HTMLInputElement).value} as any)}/></div></>)}
-    {(ev.type==='YELLOW'||ev.type==='RED') && (<><div><label className="text-sm text-gray-600">Squadra</label><select className="w-full border rounded-lg px-3 py-2" value={ev.team} onChange={e=>onChange({team:(e.target as HTMLSelectElement).value as any})}><option value="SEGURO">SEGURO</option><option value="AVVERSARI">AVVERSARI</option></select></div><div><label className="text-sm text-gray-600">Giocatore (facolt.)</label><select className="w-full border rounded-lg px-3 py-2" value={(ev as any).playerId??''} onChange={e=>onChange({playerId:(e.target as HTMLSelectElement).value?Number((e.target as HTMLSelectElement).value):undefined} as any)}><option value="">—</option>{players.map(p=> <option key={p.id} value={p.id}>{p.number} — {p.name}</option>)}</select></div><div><label className="text-sm text-gray-600">Note</label><input className="w-full border rounded-lg px-3 py-2" value={(ev as any).note??''} onChange={e=>onChange({note:(e.target as HTMLInputElement).value} as any)}/></div></>)}
-    {ev.type==='SUB' && (<><div><label className="text-sm text-gray-600">Esce</label><select className="w-full border rounded-lg px-3 py-2" value={(ev as any).outId} onChange={e=>onChange({outId:Number((e.target as HTMLSelectElement).value)} as any)}>{players.map(p=> <option key={p.id} value={p.id}>{p.number} — {p.name}</option>)}</select></div><div><label className="text-sm text-gray-600">Entra</label><select className="w-full border rounded-lg px-3 py-2" value={(ev as any).inId} onChange={e=>onChange({inId:Number((e.target as HTMLSelectElement).value)} as any)}>{players.map(p=> <option key={p.id} value={p.id}>{p.number} — {p.name}</option>)}</select></div><div><label className="text-sm text-gray-600">Note</label><input className="w-full border rounded-lg px-3 py-2" value={(ev as any).note??''} onChange={e=>onChange({note:(e.target as HTMLInputElement).value} as any)}/></div></>)}
+    {ev.type==='GOAL' && (<><div><label className="text-sm text-gray-600">Squadra</label><select className="w-full border rounded-lg px-3 py-2" value={ev.team} onChange={e=>onChange({team:(e.target as HTMLSelectElement).value as any})}><option value="SEGURO">SEGURO</option><option value="AVVERSARI">AVVERSARI</option></select></div><div><label className="text-sm text-gray-600">Giocatore (facolt.)</label><select className="w-full border rounded-lg px-3 py-2" value={(ev as any).playerId??''} onChange={e=>onChange({playerId:(e.target as HTMLSelectElement).value?Number((e.target as HTMLSelectElement).value):undefined} as any)}><option value="">—</option>{players.map(p=> <option key={p.id} value={p.id}>{p.number} — {p.firstName} {p.lastName}</option>)}</select></div><div><label className="text-sm text-gray-600">Note</label><input className="w-full border rounded-lg px-3 py-2" value={(ev as any).note??''} onChange={e=>onChange({note:(e.target as HTMLInputElement).value} as any)}/></div></>)}
+    {(ev.type==='YELLOW'||ev.type==='RED') && (<><div><label className="text-sm text-gray-600">Squadra</label><select className="w-full border rounded-lg px-3 py-2" value={ev.team} onChange={e=>onChange({team:(e.target as HTMLSelectElement).value as any})}><option value="SEGURO">SEGURO</option><option value="AVVERSARI">AVVERSARI</option></select></div><div><label className="text-sm text-gray-600">Giocatore (facolt.)</label><select className="w-full border rounded-lg px-3 py-2" value={(ev as any).playerId??''} onChange={e=>onChange({playerId:(e.target as HTMLSelectElement).value?Number((e.target as HTMLSelectElement).value):undefined} as any)}><option value="">—</option>{players.map(p=> <option key={p.id} value={p.id}>{p.number} — {p.firstName} {p.lastName}</option>)}</select></div><div><label className="text-sm text-gray-600">Note</label><input className="w-full border rounded-lg px-3 py-2" value={(ev as any).note??''} onChange={e=>onChange({note:(e.target as HTMLInputElement).value} as any)}/></div></>)}
+    {ev.type==='SUB' && (<><div><label className="text-sm text-gray-600">Esce</label><select className="w-full border rounded-lg px-3 py-2" value={(ev as any).outId} onChange={e=>onChange({outId:Number((e.target as HTMLSelectElement).value)} as any)}>{players.map(p=> <option key={p.id} value={p.id}>{p.number} — {p.firstName} {p.lastName}</option>)}</select></div><div><label className="text-sm text-gray-600">Entra</label><select className="w-full border rounded-lg px-3 py-2" value={(ev as any).inId} onChange={e=>onChange({inId:Number((e.target as HTMLSelectElement).value)} as any)}>{players.map(p=> <option key={p.id} value={p.id}>{p.number} — {p.firstName} {p.lastName}</option>)}</select></div><div><label className="text-sm text-gray-600">Note</label><input className="w-full border rounded-lg px-3 py-2" value={(ev as any).note??''} onChange={e=>onChange({note:(e.target as HTMLInputElement).value} as any)}/></div></>)}
     <div className="sm:col-span-4 flex justify-end"><button className="text-red-600 hover:text-red-800 inline-flex items-center gap-1" onClick={onRemove}><Trash size={16}/> Rimuovi</button></div>
   </div>);
 }
@@ -678,7 +678,6 @@ function FormationBuilder({players, formation, setFormation}:{players:Player[]; 
           
           {positions.map((pos, idx) => {
             const player = formation.positions[idx] ? players.find(p => p.id === formation.positions[idx]) : null;
-            const lastName = player?.name.split(' ').pop() || '';
             return (
               <g key={idx}>
                 <circle cx={pos.x} cy={pos.y} r="5" fill="white" stroke="#1e40af" strokeWidth="0.5"/>
@@ -687,7 +686,7 @@ function FormationBuilder({players, formation, setFormation}:{players:Player[]; 
                 </text>
                 {player && (
                   <text x={pos.x} y={pos.y-6} textAnchor="middle" fontSize="3" fill="white" fontWeight="bold">
-                    {lastName}
+                    {player.lastName}
                   </text>
                 )}
               </g>
@@ -712,7 +711,7 @@ function FormationBuilder({players, formation, setFormation}:{players:Player[]; 
                   <option value="">— Seleziona —</option>
                   {players.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.number} — {p.name}
+                      {p.number} — {p.firstName} {p.lastName}
                     </option>
                   ))}
                 </select>
@@ -740,7 +739,7 @@ function FormationBuilder({players, formation, setFormation}:{players:Player[]; 
                 <option value="">— Seleziona —</option>
                 {players.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.number} — {p.name}
+                    {p.number} — {p.firstName} {p.lastName}
                   </option>
                 ))}
               </select>
