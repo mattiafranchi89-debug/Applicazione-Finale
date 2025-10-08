@@ -109,6 +109,19 @@ npm run preview
 - **Workflow**: Server workflow running `npm run dev` on port 5000
 
 ## Recent Changes
+- **Oct 8, 2025**: UI Simplification & Training Schedule Update
+  - **Training Weeks**: Expanded to 39 complete weeks (September 2025 - May 2026)
+    - Simplified format: removed "Settimana X -" prefix, now shows just dates (e.g., "01-07 September")
+    - Cross-month weeks show both months (e.g., "29 Sep - 05 Oct", "29 Dec - 04 Jan")
+  - **Match Events**: Streamlined event buttons in match details
+    - Removed "Ammonizione Avv." and "Espulsione Avv." buttons
+    - Focus on Seguro team events (goals, cards, substitutions) and opponent goals only
+  - **Player Management**: Simplified player display in Players section
+    - Removed jersey number column from player tables
+    - Removed number field from add player form
+    - Numbers still auto-assigned internally for use in formations/substitutions
+    - Player lists now sorted alphabetically by first name instead of by number
+
 - **Oct 8, 2025**: Player Data Structure & Automatic Goal Tracking
   - **Player Name Split**: Player names now separated into firstName and lastName
     - Player table shows separate "Nome" (first name) and "Cognome" (last name) columns
