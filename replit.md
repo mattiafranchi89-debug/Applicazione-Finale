@@ -77,6 +77,17 @@ A comprehensive React-based web application for managing a U19 soccer team. The 
   - League standings
   - Top scorers
 
+### 7. Data Export (CSV)
+- **Training Attendance Export**: Download complete attendance history in CSV format
+  - Includes all training sessions across all weeks
+  - Shows "Presente"/"Assente" status for each player
+  - Excludes call-up only players (2009)
+  - Compatible with Excel and data analysis tools
+- **Player Statistics Export**: Download comprehensive player stats in CSV format
+  - Includes: Name, Surname, Position, Birth Year, Goals, Total Minutes, Training Attendance %
+  - All players sorted alphabetically
+  - Ready for analysis and reporting
+
 ## Data Persistence
 All data is stored in browser localStorage with the following keys:
 - `seguro_players_v1` - Player roster
@@ -109,6 +120,19 @@ npm run preview
 - **Workflow**: Server workflow running `npm run dev` on port 5000
 
 ## Recent Changes
+- **Oct 8, 2025**: CSV Export Functionality
+  - **Training Attendance Export**: Added CSV export for complete training attendance history
+    - Button "📊 Esporta Presenze CSV" in Allenamenti section
+    - Exports all training sessions with Presente/Assente status for each player
+    - Excludes call-up only players (2009)
+    - File naming: `presenze_allenamenti_YYYY-MM-DD.csv`
+  - **Player Statistics Export**: Added CSV export for player statistics
+    - Button "📊 Esporta Statistiche CSV" in Giocatori section
+    - Exports: Nome, Cognome, Ruolo, Anno, Gol, Minuti Totali, % Presenze Allenamenti
+    - All players sorted alphabetically
+    - File naming: `statistiche_giocatori_YYYY-MM-DD.csv`
+  - CSV files compatible with Excel and data analysis tools
+
 - **Oct 8, 2025**: UI Simplification & Training Schedule Update
   - **Training Weeks**: Expanded to 39 complete weeks (September 2025 - May 2026)
     - Simplified format: removed "Settimana X -" prefix, now shows just dates (e.g., "01-07 September")
