@@ -1,22 +1,31 @@
 import express from 'express';
 import cors from 'cors';
+import bcrypt from 'bcrypt';
 import { db } from './db.js';
 import { users, players, trainings, matches, callups, formations, appSettings } from '../shared/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 
 const app = express();
 const PORT = 3001;
+const SALT_ROUNDS = 10;
 
 app.use(cors());
 app.use(express.json());
+
+// Helper to remove password from user object
+const sanitizeUser = (user: any) => {
+  if (!user) return null;
+  const { password, ...sanitized } = user;
+  return sanitized;
+};
 
 // Auth API
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   const [user] = await db.select().from(users).where(eq(users.username, username));
   
-  if (user && user.password === password) {
-    res.json({ success: true, user });
+  if (user && await bcrypt.compare(password, user.password)) {
+    res.json({ success: true, user: sanitizeUser(user) });
   } else {
     res.status(401).json({ success: false, message: 'Credenziali non valide' });
   }
@@ -24,13 +33,14 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/auth/users', async (req, res) => {
   const allUsers = await db.select().from(users);
-  res.json(allUsers);
+  res.json(allUsers.map(sanitizeUser));
 });
 
 app.post('/api/auth/users', async (req, res) => {
   const { username, password, email } = req.body;
-  const [newUser] = await db.insert(users).values({ username, password, email, role: 'user' }).returning();
-  res.json(newUser);
+  const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+  const [newUser] = await db.insert(users).values({ username, password: hashedPassword, email, role: 'user' }).returning();
+  res.json(sanitizeUser(newUser));
 });
 
 app.delete('/api/auth/users/:username', async (req, res) => {
@@ -40,11 +50,17 @@ app.delete('/api/auth/users/:username', async (req, res) => {
 
 app.put('/api/auth/users/:username/password', async (req, res) => {
   const { newPassword } = req.body;
+  const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
   const [updated] = await db.update(users)
-    .set({ password: newPassword })
+    .set({ password: hashedPassword })
     .where(eq(users.username, req.params.username))
     .returning();
-  res.json(updated);
+  
+  if (!updated) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
+  res.json(sanitizeUser(updated));
 });
 
 // Players API
@@ -130,7 +146,7 @@ app.put('/api/callups/:id', async (req, res) => {
 
 // Formations API
 app.get('/api/formations/latest', async (req, res) => {
-  const [latestFormation] = await db.select().from(formations).orderBy(formations.id).limit(1);
+  const [latestFormation] = await db.select().from(formations).orderBy(desc(formations.updatedAt)).limit(1);
   res.json(latestFormation || null);
 });
 
