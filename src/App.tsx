@@ -149,6 +149,7 @@ export default function App(){
   const [authData, setAuthData] = useState<AuthData>(initialAuthData);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [callupId, setCallupId] = useState<number | null>(null);
+  const [formationId, setFormationId] = useState<number | null>(null);
 
   useEffect(()=>{
     // Load all data from database
@@ -177,7 +178,10 @@ export default function App(){
         });
         setCallupId(callupFromDb.id);
       }
-      if (formationData) setFormation(formationData);
+      if (formationData) {
+        setFormation(formationData);
+        setFormationId(formationData.id);
+      }
       if (settingsData) setSelectedWeek(settingsData.selectedWeek);
       setAuthData(prev => ({ ...prev, users: usersData }));
       setDataLoaded(true);
@@ -198,22 +202,22 @@ export default function App(){
       }
     };
     saveCallup().catch(err => console.error('Failed to save callup:', err));
-  }, [callUpData, dataLoaded, callupId]);
+  }, [callUpData, dataLoaded]); // Removed callupId from dependencies to prevent infinite loop
   
   // Auto-save formation to database when it changes (only after initial load)
   useEffect(() => {
     if (!dataLoaded) return; // Wait until initial data is loaded
     
     const saveFormation = async () => {
-      if (formation.id) {
-        await api.formations.update(formation.id, formation);
+      if (formationId) {
+        await api.formations.update(formationId, formation);
       } else {
         const created = await api.formations.create(formation);
-        setFormation(created);
+        setFormationId(created.id);
       }
     };
     saveFormation().catch(err => console.error('Failed to save formation:', err));
-  }, [formation, dataLoaded]);
+  }, [formation, dataLoaded]); // Removed formationId from dependencies to prevent infinite loop
 
   useEffect(() => {
     const hasGoalEvents = matches.some(match => 

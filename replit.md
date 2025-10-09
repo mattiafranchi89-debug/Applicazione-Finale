@@ -189,6 +189,32 @@ All endpoints use JSON for request/response bodies. Authentication endpoints san
   - ✅ Static files served correctly with proper content types
   - ✅ Ready for production deployment on Replit
 
+### October 9, 2025 - Fixed Infinite Loop Causing Call-up Screen Freeze
+**Resolved Application Freeze on Call-up Tab**
+
+- **Problem Identified**: Application froze with white screen when clicking on Convocazioni (Call-ups) tab
+  - Root cause: Infinite loop in useEffect hooks for auto-saving callUpData and formation
+  - callUpData useEffect had `callupId` in dependencies, causing loop when `setCallupId` was called
+  - formation useEffect had similar issue with `setFormation` being called during creation
+  
+- **Solution Applied**:
+  - Added separate `formationId` state to track formation database ID (like existing `callupId`)
+  - Removed `callupId` and `formationId` from respective useEffect dependencies
+  - Both useEffects now safely branch between create (when ID is null) and update (when ID exists)
+  - Initial data loading properly sets both IDs before enabling auto-save
+  
+- **Technical Details**:
+  - `callUpData` useEffect: Removed `callupId` from dependencies, create/update logic intact
+  - `formation` useEffect: Added `formationId` state, removed from dependencies, full create/update flow restored
+  - Both effects gate on `dataLoaded` flag to prevent saves during initial hydration
+  - No more infinite re-renders or UI freezes
+  
+- **Status**:
+  - ✅ Infinite loop eliminated in both callUpData and formation useEffects
+  - ✅ Application no longer freezes when accessing Call-up tab
+  - ✅ First-time creation and subsequent updates work correctly for both features
+  - ✅ Cross-device synchronization maintained without performance issues
+
 ### October 9, 2025 - Database Schema Fix for Call-ups
 **Resolved Blank Call-up Screen Issue**
 
