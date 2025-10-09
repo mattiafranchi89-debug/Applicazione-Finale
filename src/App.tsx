@@ -165,8 +165,17 @@ export default function App(){
       if (trainingsData.length > 0) setTrainings(trainingsData);
       if (matchesData.length > 0) setMatches(matchesData);
       if (callupsData.length > 0 && callupsData[0]) {
-        setCallUpData(callupsData[0]);
-        setCallupId(callupsData[0].id);
+        const callupFromDb = callupsData[0];
+        // Ensure all required fields are present with defaults
+        setCallUpData({
+          opponent: callupFromDb.opponent || '',
+          date: callupFromDb.date || '',
+          meetingTime: callupFromDb.meetingTime || '',
+          kickoffTime: callupFromDb.kickoffTime || '',
+          location: callupFromDb.location || '',
+          selectedPlayers: Array.isArray(callupFromDb.selectedPlayers) ? callupFromDb.selectedPlayers : []
+        });
+        setCallupId(callupFromDb.id);
       }
       if (formationData) setFormation(formationData);
       if (settingsData) setSelectedWeek(settingsData.selectedWeek);
