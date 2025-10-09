@@ -8,20 +8,32 @@ A comprehensive React-based web application for managing a U19 soccer team. The 
 - **Build Tool**: Vite 5.4.6
 - **Styling**: Tailwind CSS 3.4.12
 - **Icons**: Lucide React
-- **Storage**: Browser localStorage for data persistence
+- **Backend**: Express.js REST API (Node.js)
+- **Database**: PostgreSQL (Neon) with Drizzle ORM
+- **Storage**: 
+  - User authentication in PostgreSQL database (cross-device sync)
+  - Player/training/match data in browser localStorage (local-only)
 
 ## Project Structure
 ```
 /
 ├── src/
 │   ├── App.tsx          # Main application component with all features
+│   ├── api.ts           # API client for backend communication
 │   ├── main.tsx         # Application entry point
 │   └── index.css        # Global styles with Tailwind directives
+├── server/
+│   ├── index.ts         # Express server with REST API endpoints
+│   ├── db.ts            # Database connection (Neon PostgreSQL)
+│   └── seed.ts          # Database seed script (creates admin user)
+├── shared/
+│   └── schema.ts        # Drizzle ORM database schema
 ├── index.html           # HTML template
-├── vite.config.ts       # Vite configuration (configured for Replit)
+├── vite.config.ts       # Vite configuration (proxy to backend API)
+├── drizzle.config.ts    # Drizzle ORM configuration
 ├── tailwind.config.js   # Tailwind CSS configuration
 ├── tsconfig.json        # TypeScript configuration
-└── package.json         # Project dependencies
+└── package.json         # Project dependencies and scripts
 ```
 
 ## Key Features
@@ -89,7 +101,16 @@ A comprehensive React-based web application for managing a U19 soccer team. The 
   - Ready for analysis and reporting
 
 ## Data Persistence
-All data is stored in browser localStorage with the following keys:
+
+### Database (PostgreSQL - Cross-Device Sync)
+User authentication is stored in PostgreSQL database for cross-device synchronization:
+- **users** table - Username, hashed password, email, role (admin/user)
+- Passwords secured with bcrypt (SALT_ROUNDS=10)
+- API endpoints sanitize responses (passwords never exposed)
+- Database accessible via environment variable `DATABASE_URL`
+
+### Local Storage (Browser-Specific)
+Player and team data still stored in browser localStorage:
 - `seguro_players_v1` - Player roster
 - `seguro_trainings_v1` - Training attendance data
 - `seguro_selectedWeek_v1` - Currently selected training week
@@ -102,9 +123,16 @@ All data is stored in browser localStorage with the following keys:
 ### Running Locally
 ```bash
 npm install
-npm run dev
+npm run dev        # Start frontend (port 5000)
+npm run server     # Start backend API (port 3001)
+npm run dev:full   # Start both simultaneously
 ```
-The app runs on port 5000 (configured for Replit environment).
+
+### Database Management
+```bash
+npm run db:push    # Push schema changes to database
+npm run db:seed    # Create initial admin user
+```
 
 ### Building for Production
 ```bash
@@ -113,13 +141,38 @@ npm run preview
 ```
 
 ## Replit Configuration
-- **Server Port**: 5000 (required for Replit)
+- **Frontend Port**: 5000 (Vite dev server, webview output)
+- **Backend Port**: 3001 (Express API server, console output)
 - **Host**: 0.0.0.0 (allows external connections)
 - **HMR**: Configured for Replit's proxy environment
+- **API Proxy**: Vite proxies `/api` requests to backend
 - **Deployment**: Configured with autoscale deployment (build + preview)
-- **Workflow**: Server workflow running `npm run dev` on port 5000
+- **Workflows**: 
+  - Backend workflow running `npm run server` on port 3001
+  - Server workflow running `npm run dev` on port 5000
 
 ## Recent Changes
+- **Oct 9, 2025**: Cross-Device Authentication with PostgreSQL Database
+  - **Database Backend Implementation**: Migrated authentication from localStorage to PostgreSQL
+    - Created Express.js REST API server (port 3001) with secure endpoints
+    - Implemented Drizzle ORM schema with users table
+    - Password hashing with bcrypt (SALT_ROUNDS=10)
+    - API responses sanitized (passwords never exposed)
+    - Created seed script (`npm run db:seed`) for admin user setup
+  - **Frontend Migration**: Updated authentication to use database API
+    - Login, user creation, deletion, and password reset now use async API calls
+    - Removed localStorage dependency for auth data
+    - Users can now login from any device (data synced via shared database)
+  - **Dual Workflow Architecture**:
+    - Backend workflow: `npm run server` on port 3001 (console output)
+    - Frontend workflow: `npm run dev` on port 5000 (webview)
+    - Vite proxy configuration forwards `/api` requests to backend
+  - **Security Improvements**:
+    - All passwords bcrypt-hashed before storage
+    - 404 handling for missing users
+    - Sanitized API responses prevent password leaks
+  - **Note**: Only authentication migrated to database; players, trainings, matches still use localStorage
+
 - **Oct 8, 2025**: CSV Export Functionality
   - **Training Attendance Export**: Added CSV export for complete training attendance history
     - Button "📊 Esporta Presenze CSV" in Allenamenti section
