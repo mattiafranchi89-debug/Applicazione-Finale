@@ -1,229 +1,221 @@
 # Seguro Calcio U19 - Team Management System
 
 ## Overview
-A comprehensive React-based web application for managing a U19 soccer team. The system helps track players, training attendance, match events, call-ups, and team statistics.
-
-## Technology Stack
-- **Frontend Framework**: React 18.3.1 with TypeScript
-- **Build Tool**: Vite 5.4.6
-- **Styling**: Tailwind CSS 3.4.12
-- **Icons**: Lucide React
-- **Storage**: Browser localStorage for data persistence
-
-## Project Structure
-```
-/
-├── src/
-│   ├── App.tsx          # Main application component with all features
-│   ├── main.tsx         # Application entry point
-│   └── index.css        # Global styles with Tailwind directives
-├── index.html           # HTML template
-├── vite.config.ts       # Vite configuration (configured for Replit)
-├── tailwind.config.js   # Tailwind CSS configuration
-├── tsconfig.json        # TypeScript configuration
-└── package.json         # Project dependencies
-```
-
-## Key Features
-
-### 1. Dashboard
-- Overview of team statistics (players, matches played, total goals)
-- Top scorers leaderboard
-- Next match information
-
-### 2. Player Management
-- Add/remove players with separate first name and last name fields
-- Track player statistics (goals, minutes played)
-- **Automatic goal tracking**: Goals are automatically updated from match events
-- Monitor training attendance percentage
-- Player categorization by birth year:
-  - 2005-2006: Older players (max 4 in call-ups)
-  - 2007-2008: Regular squad players
-  - 2009: Call-up only players (not eligible for training sessions)
-- Special badge "Solo Conv." for 2009 players
-
-### 3. Training Sessions
-- Weekly training session tracking (Mon/Wed/Fri)
-- **Inverted attendance logic**: Select only absent players, all others automatically marked present
-- Red highlighting for absent players, green for present
-- Historical training data with weekly views
-- "Chiudi allenamento" button to finalize attendance
-- Ability to add new training weeks
-- 2009 players excluded from training sessions
-
-### 4. Match Management
-- Record match details (date, time, location, result)
-- Track match events:
-  - Goals (for both teams)
-  - Yellow/Red cards
-  - Substitutions
-- Calculate player minutes automatically based on starting XI and substitutions
-- Manual minute entry option
-
-### 5. Call-Up System
-- Select up to 20 players for matches
-- Automatic validation (max 4 players born 2005-2006)
-- WhatsApp integration for sending formatted call-up messages
-- Organized by player position
-- **Visual Formation Builder**:
-  - Interactive soccer field with tactical modules (4-3-3, 4-4-2, 4-2-3-1, 3-5-2, 3-4-3)
-  - Visual player positioning on field
-  - Drag-and-drop style player assignment to positions
-  - Real-time field visualization with player numbers
-
-### 6. External Widgets
-- Tuttocampo.it integration for:
-  - Live results
-  - League standings
-  - Top scorers
-
-### 7. Data Export (CSV)
-- **Training Attendance Export**: Download complete attendance history in CSV format
-  - Includes all training sessions across all weeks
-  - Shows "Presente"/"Assente" status for each player
-  - Excludes call-up only players (2009)
-  - Compatible with Excel and data analysis tools
-- **Player Statistics Export**: Download comprehensive player stats in CSV format
-  - Includes: Name, Surname, Position, Birth Year, Goals, Total Minutes, Training Attendance %
-  - All players sorted alphabetically
-  - Ready for analysis and reporting
-
-## Data Persistence
-All data is stored in browser localStorage with the following keys:
-- `seguro_players_v1` - Player roster
-- `seguro_trainings_v1` - Training attendance data
-- `seguro_selectedWeek_v1` - Currently selected training week
-- `seguro_matches_v1` - Match data and events
-- `seguro_callup_v1` - Call-up information
-- `seguro_formation_v1` - Formation tactical data (module and player positions)
-
-## Development
-
-### Running Locally
-```bash
-npm install
-npm run dev
-```
-The app runs on port 5000 (configured for Replit environment).
-
-### Building for Production
-```bash
-npm run build
-npm run preview
-```
-
-## Replit Configuration
-- **Server Port**: 5000 (required for Replit)
-- **Host**: 0.0.0.0 (allows external connections)
-- **HMR**: Configured for Replit's proxy environment
-- **Deployment**: Configured with autoscale deployment (build + preview)
-- **Workflow**: Server workflow running `npm run dev` on port 5000
-
-## Recent Changes
-- **Oct 8, 2025**: CSV Export Functionality
-  - **Training Attendance Export**: Added CSV export for complete training attendance history
-    - Button "📊 Esporta Presenze CSV" in Allenamenti section
-    - Exports all training sessions with Presente/Assente status for each player
-    - Excludes call-up only players (2009)
-    - File naming: `presenze_allenamenti_YYYY-MM-DD.csv`
-  - **Player Statistics Export**: Added CSV export for player statistics
-    - Button "📊 Esporta Statistiche CSV" in Giocatori section
-    - Exports: Nome, Cognome, Ruolo, Anno, Gol, Minuti Totali, % Presenze Allenamenti
-    - All players sorted alphabetically
-    - File naming: `statistiche_giocatori_YYYY-MM-DD.csv`
-  - CSV files compatible with Excel and data analysis tools
-
-- **Oct 8, 2025**: UI Simplification & Training Schedule Update
-  - **Training Weeks**: Expanded to 39 complete weeks (September 2025 - May 2026)
-    - Simplified format: removed "Settimana X -" prefix, now shows just dates (e.g., "01-07 September")
-    - Cross-month weeks show both months (e.g., "29 Sep - 05 Oct", "29 Dec - 04 Jan")
-  - **Match Events**: Streamlined event buttons in match details
-    - Removed "Ammonizione Avv." and "Espulsione Avv." buttons
-    - Focus on Seguro team events (goals, cards, substitutions) and opponent goals only
-  - **Player Management**: Simplified player display in Players section
-    - Removed jersey number column from player tables
-    - Removed number field from add player form
-    - Numbers still auto-assigned internally for use in formations/substitutions
-    - Player lists now sorted alphabetically by first name instead of by number
-
-- **Oct 8, 2025**: Player Data Structure & Automatic Goal Tracking
-  - **Player Name Split**: Player names now separated into firstName and lastName
-    - Player table shows separate "Nome" (first name) and "Cognome" (last name) columns
-    - Add player form requires separate input for first and last name
-    - All UI components updated to display names correctly
-  - **Removed Assists Tracking**: Assists column removed from player statistics
-  - **Automatic Goal Updates**: Player goal counts automatically sync with match events
-    - When GOAL events are added to matches for Seguro players, goal counts update automatically
-    - System only updates when actual GOAL events exist (preserves initial data)
-    - Goal tallies calculated from all match events where team='SEGURO' and playerId is specified
-  - All WhatsApp messages, formation builder, and event editors updated with new name format
-
-- **Oct 8, 2025**: GitHub Import Setup Completed
-  - Successfully imported GitHub repository to Replit
-  - Installed all npm dependencies (174 packages)
-  - Created .gitignore for Node.js/Replit environment
-  - Updated vite.config.ts to remove restrictive allowedHosts (now accepts all hosts)
-  - Configured Server workflow for development (npm run dev on port 5000)
-  - Configured deployment settings (autoscale with build and preview)
-  - Verified app is running correctly with login page displaying
-- **Oct 8, 2025**: Call-Up Only Players & Inverted Training Attendance
-  - Implemented call-up only logic for 2009 players:
-    - Players born in 2009 can be added to the roster but only for match call-ups
-    - They do NOT appear in training sessions
-    - Training statistics show "—" for these players
-    - Purple badge "Solo Conv." displayed in player list
-  - Inverted training attendance system:
-    - Coaches now select only ABSENT players
-    - All non-selected players are automatically marked as PRESENT
-    - Red highlighting for absent players, green for present
-    - Statistics automatically calculated with inverted logic
-  - Added "Chiudi allenamento" button to finalize training sessions
-
-- **Oct 8, 2025**: Authentication and Password Recovery System
-  - Implemented login system with localStorage-based authentication
-  - **Admin Initial Credentials**: 
-    - Username: `admin`
-    - Password: `admin2024`
-    - Email: mattia.franchi89@gmail.com
-  - User management panel for admin:
-    - Add new users
-    - Automatic email template generation with credentials
-    - Copy-to-clipboard functionality for sending credentials to new users
-    - Reset user passwords
-    - Delete non-admin users
-  - Password recovery feature:
-    - "Password dimenticata?" link in login page
-    - Instructions to contact admin for password reset
-    - Admin can reset any user's password via dedicated UI
-  - New user onboarding:
-    - When admin creates a user, system shows email template with credentials
-    - Template can be copied and sent manually to the new user
-    - User receives username, password, and login link
-  - Authentication data persisted in localStorage (seguro_auth_v1)
-  - **Security Note**: Passwords stored in plaintext in localStorage (suitable for local team management, not for sensitive data)
-
-- **Oct 8, 2025**: Visual Formation Builder
-  - Added interactive formation builder in Convocazione section
-  - Support for 5 tactical modules (4-3-3, 4-4-2, 4-2-3-1, 3-5-2, 3-4-3)
-  - Visual soccer field with SVG rendering
-  - Player assignment to positions with dropdown selectors
-  - Formation data persisted in localStorage
-  - Fixed missing Classifica (standings) widget
-  - Meeting time automatically set to 90 minutes before kickoff
-
-- **Oct 7, 2025**: Initial Replit setup
-  - Configured Vite for Replit environment (port 5000, proper HMR settings)
-  - Fixed syntax errors in template literals
-  - Added .gitignore for Node.js
-  - Removed duplicate Terza-prova folder
-  - Configured deployment settings
-  - Implemented complete fixture list (26 matches)
-  - Enhanced callup section with auto-filling match details
+A comprehensive React-based web application designed for managing a U19 soccer team. Its core purpose is to streamline player tracking, training attendance, match event recording, call-up generation, and team statistics. The system aims to provide a centralized platform for coaches and staff to efficiently oversee team operations and performance.
 
 ## User Preferences
-(To be updated as preferences are learned)
+- The user prefers detailed explanations.
+- The user prefers iterative development.
+- The user prefers to be asked before major changes are made.
+- The user prefers clear and concise communication.
 
-## Notes
-- The app is in Italian, designed for managing "Seguro Calcio U19" team
-- Reset functionality available to clear all local data
-- Responsive design works on mobile and desktop
+## System Architecture
+The application is built with a React frontend using TypeScript and Vite, styled with Tailwind CSS and Lucide React icons. The backend is an Express.js REST API using Node.js, with data persisted in a PostgreSQL database (Neon) managed by Drizzle ORM.
+
+**UI/UX Decisions:**
+- **Dashboard**: Provides an overview of team statistics, top scorers, and next match information.
+- **Player Management**: Features adding/removing players, tracking individual statistics (goals, minutes), and monitoring training attendance. Players are categorized by birth year, with special handling for 2009 players ("Solo Conv."). Automatic goal tracking updates player stats from match events.
+- **Training Sessions**: Tracks weekly attendance with an inverted logic (select absent players, others are present). Historical data and the ability to finalize sessions are included. 2009 players are excluded from training.
+- **Match Management**: Records match details, results, and events (goals, cards, substitutions). Player minutes are calculated automatically.
+- **Call-Up System**: Allows selection of up to 20 players with validation rules (e.g., max 4 older players). Includes WhatsApp integration for sharing call-ups and an interactive **Visual Formation Builder** with various tactical modules (4-3-3, 4-4-2, 4-2-3-1, 3-5-2, 3-4-3) for visual player positioning.
+- **Data Export (CSV)**: Provides export functionality for comprehensive training attendance and player statistics, compatible with Excel.
+
+**Technical Implementations:**
+- **Full Cross-Device Synchronization**: All application data (users, players, trainings, matches, call-ups, formations, settings) is stored exclusively in a PostgreSQL database (Neon) with Drizzle ORM, ensuring no localStorage dependencies for data persistence.
+- **Authentication**: Secure user authentication with bcrypt hashed passwords.
+- **API Proxy**: Vite is configured to proxy `/api` requests to the Express backend.
+- **Database Seeding**: Scripts are available for seeding initial admin user and application data.
+
+## Data Persistence
+
+### PostgreSQL Database Schema
+All application data is persisted in a PostgreSQL database (Neon) with complete cross-device synchronization:
+
+- **users** - User authentication and authorization
+  - `id`, `username`, `password` (bcrypt hashed), `email`, `role` (admin/user)
+  - Passwords secured with bcrypt (SALT_ROUNDS=10)
+  - API responses sanitized to never expose passwords
+
+- **players** - Player roster and statistics
+  - `id`, `number`, `firstName`, `lastName`, `role` (position), `birthYear`
+  - `goals`, `assists`, `minutesPlayed` - Performance tracking
+  - Goals automatically synced from match events
+
+- **trainings** - Weekly training attendance
+  - `id`, `weekNumber`, `weekLabel`
+  - `sessions` (JSONB) - Array of sessions with day, date, and attendance data
+  - Attendance stored as {playerId: boolean} per session
+
+- **matches** - Match fixtures, results, and events
+  - `id`, `round`, `date`, `time`, `home`, `away`, `address`, `city`
+  - `result` - Final score (e.g., "2-1")
+  - `events` (JSONB) - Array of match events (goals, cards, substitutions)
+
+- **callups** - Match call-up information
+  - `id`, `selectedPlayers` (JSONB) - Array of player IDs selected for match
+  - Latest record represents current active call-up
+
+- **formations** - Tactical formation data
+  - `id`, `module` - Formation system (e.g., "4-3-3", "4-4-2")
+  - `positions` (JSONB) - Player positioning on field
+  - Latest record represents current active formation
+
+- **settings** - Application preferences
+  - `id`, `selectedWeek` - Currently selected training week
+  - User-specific settings and preferences
+
+### Database Seeding
+
+**Prerequisites:**
+- PostgreSQL database provisioned (Neon)
+- `DATABASE_URL` environment variable configured and accessible
+- Database schema pushed (`npm run db:push`)
+
+**Execution Order:**
+Two seed scripts populate fresh databases:
+
+1. **Admin User Seed** (`npm run db:seed`)
+   - Creates initial admin account
+   - Default credentials: username `admin`, password `admin2024`
+   - Must be run first on new database
+   - Idempotent: Safe to rerun, checks for existing admin user
+
+2. **Application Data Seed** (`npm run db:seed-data`)
+   - Populates 19 players (team roster)
+   - Creates 5 initial training weeks
+   - Inserts 26 match fixtures
+   - Run after admin user seed
+   - Idempotent: Skip logic prevents duplicate inserts on rerun
+
+**Verification:**
+- Login to app with admin credentials to verify user seed
+- Check Players/Trainings/Matches sections to verify data seed
+- All operations logged to console for troubleshooting
+
+**Rollback/Recovery:**
+- Seeds are idempotent - safe to rerun without duplicates
+- Manual cleanup if needed: Use database pane or SQL tool to delete specific records
+- Full reset: Drop all tables, re-run `npm run db:push`, then both seed scripts
+
+### REST API Endpoints
+Complete CRUD operations available for all data entities:
+
+- **Users**: `/api/users` - GET (all), POST (create), PUT/:id (update), DELETE/:id (delete)
+- **Players**: `/api/players` - GET (all), GET/:id (single), POST (create), PUT/:id (update), DELETE/:id (delete)
+- **Trainings**: `/api/trainings` - GET (all), GET/:id (single), POST (create), PUT/:id (update), DELETE/:id (delete)
+- **Matches**: `/api/matches` - GET (all), GET/:id (single), POST (create), PUT/:id (update), DELETE/:id (delete)
+- **Call-ups**: `/api/callups` - GET (latest), POST (create), PUT/:id (update)
+- **Formations**: `/api/formations` - GET (latest), POST (create), PUT/:id (update)
+- **Settings**: `/api/settings` - GET (latest), POST (create), PUT/:id (update)
+
+All endpoints use JSON for request/response bodies. Authentication endpoints sanitize passwords from responses.
+
+## External Dependencies
+- **PostgreSQL (Neon)**: Cloud-hosted relational database for all data persistence.
+- **Express.js**: Node.js framework for building the REST API.
+- **React**: Frontend JavaScript library for building user interfaces.
+- **Vite**: Frontend build tool.
+- **Tailwind CSS**: Utility-first CSS framework for styling.
+- **Lucide React**: Icon library.
+- **Tuttocampo.it**: Integrated for external widgets displaying live results, league standings, and top scorers.
+- **WhatsApp**: Integration for sending formatted call-up messages.
+
+## Recent Changes
+
+### October 9, 2025 - Complete Database Migration
+**Complete PostgreSQL Migration - Full Cross-Device Synchronization**
+
+- **Database Backend**: Migrated ALL data from localStorage to PostgreSQL
+  - Extended Drizzle ORM schema: players, trainings, matches, callups, formations, settings tables
+  - Implemented comprehensive REST API endpoints for all CRUD operations (see REST API Endpoints section)
+  - All data operations now async with proper error handling
+  
+- **Frontend Migration**: Updated entire App.tsx to use database APIs
+  - Replaced localStorage read/write with async API calls
+  - Implemented auto-save pattern with `dataLoaded` flag to prevent race conditions during hydration
+  - All mutations (addPlayer, deletePlayer, toggleAttendance, updateMatch, etc.) now save to database
+  - Settings, callups, and formations auto-save on changes after data loaded
+  
+- **Data Seeding System**: Created dual seed workflow for fresh database setup
+  - `npm run db:seed` - Creates admin user (username: admin, password: admin2024)
+  - `npm run db:seed-data` - Populates 19 players, 5 training weeks, 26 match fixtures
+  - Idempotent operations with skip logic to prevent duplicate inserts
+  - Execution order: Run db:seed first, then db:seed-data
+  
+- **Bug Fixes**:
+  - Fixed Drizzle ORM timestamp handling: use `sql\`now()\`` instead of JavaScript Date objects
+  - Filtered id/createdAt/updatedAt from request bodies to avoid serialization errors
+  - Corrected callups and formations create/update endpoints
+  
+- **Migration Status**: 
+  - ✅ localStorage completely retired - zero dependencies for data persistence
+  - ✅ All data (users, players, trainings, matches, callups, formations, settings) in PostgreSQL
+  - ✅ Complete cross-device synchronization functional
+  - ✅ Backend and frontend fully integrated with database
+
+### October 9, 2025 - Production Deployment Configuration
+**Unified Backend Architecture for Deployment**
+
+- **Deployment Architecture**: Configured for Replit autoscale deployment
+  - **Build step**: `npm run build` - Compiles TypeScript and builds React frontend to `dist/`
+  - **Run command**: `npm run server` - Starts Express backend on port 3001
+  - Backend serves both API endpoints (`/api/*`) and static frontend files (`dist/`)
+  
+- **Development vs Production**:
+  - **Development**: Two workflows running in parallel
+    - Vite dev server (port 5000) - Frontend with HMR
+    - Express backend (port 3001) - API server
+    - Vite proxy forwards `/api` requests to backend
+  - **Production**: Single unified server
+    - Express serves static files from `dist/` folder
+    - Same Express server handles API requests
+    - SPA fallback route redirects all non-API requests to `index.html`
+  
+- **Technical Implementation**:
+  - **Port Configuration**:
+    - Development: Backend uses PORT=3001 (set via workflow), Vite dev server on 5000
+    - Production: Backend uses PORT=5000 (env variable or default)
+    - Server code: `const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000`
+  - API base URL: `/api` (relative path works in both environments)
+  - Static file serving: `express.static(distPath)` middleware
+  - SPA routing: Custom middleware for fallback to index.html
+  - Fixed Express routing error: Changed from `app.get('*')` to `app.use()` middleware to avoid path-to-regexp errors
+  - Server binding: Listens on all interfaces (0.0.0.0) for Replit compatibility
+  
+- **Deployment Status**:
+  - ✅ Build and run commands configured for autoscale deployment
+  - ✅ Backend serves both API and frontend in production
+  - ✅ API endpoints tested and functional (port 3001)
+  - ✅ Static files served correctly with proper content types
+  - ✅ Ready for production deployment on Replit
+
+### October 9, 2025 - Database Schema Fix for Call-ups
+**Resolved Blank Call-up Screen Issue**
+
+- **Problem Identified**: Call-up screen displayed blank page due to database schema mismatch
+  - CallUpData type requires: opponent, date, meetingTime, kickoffTime, location, selectedPlayers
+  - Database callups table was missing: opponent, date, updatedAt columns
+  - Frontend received incomplete data causing rendering failure
+  
+- **Solution Applied**:
+  - Added missing columns via SQL: `opponent`, `date`, `updatedAt`
+  - Updated existing callup record with valid default values
+  - Corrected JSONB column definition for `selectedPlayers` using `.$type<number[]>()`
+  - Verified API endpoint returns complete CallUpData structure
+  
+- **Technical Details**:
+  - Used direct SQL ALTER TABLE to avoid interactive drizzle-kit prompts
+  - Properly typed JSONB column for TypeScript compatibility
+  - Maintained data integrity with NOT NULL constraints and sensible defaults
+  
+- **Status**:
+  - ✅ Call-up screen schema corrected
+  - ✅ All CallUpData fields present in database
+  - ✅ API endpoint tested and functional
+  - ✅ Frontend receives complete data structure
+  - ✅ Added defensive checks in CallUpTab component
+  - ✅ Data validation on load ensures all fields have defaults
+  - ✅ Optional chaining prevents crashes from missing fields
+  - ✅ Fixed all direct accesses to selectedPlayers with Array.isArray guards
+  - ✅ Normalized database data to ensure JSON array format
+  - ✅ Complete crash protection in togglePlayerCallUp and sendWhatsApp functions
