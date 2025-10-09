@@ -152,3 +152,34 @@ All endpoints use JSON for request/response bodies. Authentication endpoints san
   - ✅ All data (users, players, trainings, matches, callups, formations, settings) in PostgreSQL
   - ✅ Complete cross-device synchronization functional
   - ✅ Backend and frontend fully integrated with database
+
+### October 9, 2025 - Production Deployment Configuration
+**Unified Backend Architecture for Deployment**
+
+- **Deployment Architecture**: Configured for Replit autoscale deployment
+  - **Build step**: `npm run build` - Compiles TypeScript and builds React frontend to `dist/`
+  - **Run command**: `npm run server` - Starts Express backend on port 3001
+  - Backend serves both API endpoints (`/api/*`) and static frontend files (`dist/`)
+  
+- **Development vs Production**:
+  - **Development**: Two workflows running in parallel
+    - Vite dev server (port 5000) - Frontend with HMR
+    - Express backend (port 3001) - API server
+    - Vite proxy forwards `/api` requests to backend
+  - **Production**: Single unified server
+    - Express serves static files from `dist/` folder
+    - Same Express server handles API requests
+    - SPA fallback route redirects all non-API requests to `index.html`
+  
+- **Technical Implementation**:
+  - API base URL: `/api` (relative path works in both environments)
+  - Static file serving: `express.static(distPath)` middleware
+  - SPA routing: Custom middleware for fallback to index.html
+  - Fixed Express routing error: Changed from `app.get('*')` to `app.use()` middleware to avoid path-to-regexp errors
+  
+- **Deployment Status**:
+  - ✅ Build and run commands configured for autoscale deployment
+  - ✅ Backend serves both API and frontend in production
+  - ✅ API endpoints tested and functional (port 3001)
+  - ✅ Static files served correctly with proper content types
+  - ✅ Ready for production deployment on Replit

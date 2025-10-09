@@ -1,9 +1,14 @@
 import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { db } from './db.js';
 import { users, players, trainings, matches, callups, formations, appSettings } from '../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3001;
@@ -190,6 +195,19 @@ app.put('/api/settings', async (req, res) => {
   } else {
     const [newSettings] = await db.insert(appSettings).values(req.body).returning();
     res.json(newSettings);
+  }
+});
+
+// Serve static files from dist folder in production
+const distPath = path.join(__dirname, '..', 'dist');
+app.use(express.static(distPath));
+
+// Fallback to index.html for SPA routing (must be after all API routes)
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api')) {
+    res.sendFile(path.join(distPath, 'index.html'));
+  } else {
+    next();
   }
 });
 
