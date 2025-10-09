@@ -26,7 +26,7 @@ type TrainingWeek = { id:number; week:string; sessions:TrainingSession[] };
 
 type CallUpData = { opponent:string; date:string; meetingTime:string; kickoffTime:string; location:string; selectedPlayers:number[] };
 
-type FormationData = { module: string; positions: Record<string, number | null>; substitutes?: (number | null)[] };
+type FormationData = { id?: number; module: string; positions: Record<string, number | null>; substitutes?: (number | null)[] };
 
 const initialPlayers: Player[] = [
   { id: 1, firstName: 'Gabriele', lastName: 'Russo', number: 1, position: 'Portiere', goals: 0, presences: 12, birthYear: 2007 },
@@ -404,10 +404,10 @@ export default function App(){
       ]);
       
       await Promise.all([
-        ...playersData.map(p => api.players.delete(p.id)),
-        ...trainingsData.map(t => api.trainings.update(t.id, { sessions: [] })),
-        ...matchesData.map(m => api.matches.update(m.id, { result: null, events: [] })),
-        ...callupsData.map(c => api.callups.update(c.id, { selectedPlayers: [] }))
+        ...playersData.map((p: any) => api.players.delete(p.id)),
+        ...trainingsData.map((t: any) => api.trainings.update(t.id, { sessions: [] })),
+        ...matchesData.map((m: any) => api.matches.update(m.id, { result: null, events: [] })),
+        ...callupsData.map((c: any) => api.callups.update(c.id, { selectedPlayers: [] }))
       ]);
       
       // Reset to initial state
@@ -577,7 +577,7 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
       <button className="btn btn-primary" onClick={addNewWeek}>Nuova Settimana</button>
       <div className="ml-auto flex items-center gap-2">
         <span className="text-sm text-gray-600">Seleziona Settimana</span>
-        <select className="px-3 py-2 border rounded-lg" value={selectedWeek} onChange={e=>changeSelectedWeek(Number(e.target.value))}>
+        <select className="px-3 py-2 border rounded-lg" value={selectedWeek} onChange={e=>setSelectedWeek(Number(e.target.value))}>
           {trainings.map(t=> <option key={t.id} value={t.id}>{t.week}</option>) }
         </select>
       </div>
