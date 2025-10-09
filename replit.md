@@ -172,10 +172,15 @@ All endpoints use JSON for request/response bodies. Authentication endpoints san
     - SPA fallback route redirects all non-API requests to `index.html`
   
 - **Technical Implementation**:
+  - **Port Configuration**:
+    - Development: Backend uses PORT=3001 (set via workflow), Vite dev server on 5000
+    - Production: Backend uses PORT=5000 (env variable or default)
+    - Server code: `const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000`
   - API base URL: `/api` (relative path works in both environments)
   - Static file serving: `express.static(distPath)` middleware
   - SPA routing: Custom middleware for fallback to index.html
   - Fixed Express routing error: Changed from `app.get('*')` to `app.use()` middleware to avoid path-to-regexp errors
+  - Server binding: Listens on all interfaces (0.0.0.0) for Replit compatibility
   
 - **Deployment Status**:
   - ✅ Build and run commands configured for autoscale deployment
