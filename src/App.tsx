@@ -624,7 +624,9 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
 }
 
 function CallUpTab({ players, matches, callUpData, setCallUpData, togglePlayerCallUp, sendWhatsApp, getPlayerWeekStats, formation, setFormation }:{ players:Player[]; matches:Match[]; callUpData:CallUpData; setCallUpData:React.Dispatch<React.SetStateAction<CallUpData>>; togglePlayerCallUp:(id:number)=>void; sendWhatsApp:()=>void; getPlayerWeekStats:(playerId:number)=>{present:number; total:number; percentage:number}; formation:FormationData; setFormation:React.Dispatch<React.SetStateAction<FormationData>> }){
-  const oldPlayers = callUpData.selectedPlayers.map(id=>players.find(p=>p.id===id)!).filter(p=>p && (p.birthYear===2005||p.birthYear===2006));
+  // Safety check: ensure selectedPlayers is always an array
+  const selectedPlayers = Array.isArray(callUpData?.selectedPlayers) ? callUpData.selectedPlayers : [];
+  const oldPlayers = selectedPlayers.map(id=>players.find(p=>p.id===id)!).filter(p=>p && (p.birthYear===2005||p.birthYear===2006));
   
   const handleMatchChange = (matchId: string) => {
     if (!matchId) {
@@ -676,15 +678,15 @@ function CallUpTab({ players, matches, callUpData, setCallUpData, togglePlayerCa
   return (<section className="space-y-4">
     <div className="card grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
       <div><label className="text-sm text-gray-600">Partita</label><select className="w-full px-3 py-2 border rounded-lg" value={currentSelection?.id || ''} onChange={e=>handleMatchChange(e.target.value)}><option value="">-- Seleziona Partita --</option>{matchOptions.map(opt=><option key={opt.id} value={opt.id}>{opt.label}</option>)}</select></div>
-      <div><label className="text-sm text-gray-600">Data Partita</label><input type="date" className="w-full px-3 py-2 border rounded-lg" value={callUpData.date} onChange={e=>setCallUpData(v=>({...v,date:e.target.value}))}/></div>
-      <div><label className="text-sm text-gray-600">Orario Ritrovo</label><input type="time" className="w-full px-3 py-2 border rounded-lg" value={callUpData.meetingTime} onChange={e=>setCallUpData(v=>({...v,meetingTime:e.target.value}))}/></div>
-      <div><label className="text-sm text-gray-600">Calcio d'Inizio</label><input type="time" className="w-full px-3 py-2 border rounded-lg" value={callUpData.kickoffTime} onChange={e=>setCallUpData(v=>({...v,kickoffTime:e.target.value}))}/></div>
-      <div className="lg:col-span-2"><label className="text-sm text-gray-600">Indirizzo Campo</label><input className="w-full px-3 py-2 border rounded-lg" value={callUpData.location} onChange={e=>setCallUpData(v=>({...v,location:e.target.value}))}/></div>
-      <div className="flex items-center gap-3"><span className="badge bg-blue-100 text-blue-700">{callUpData.selectedPlayers.length}/20 Selezionati</span><span className="badge bg-orange-100 text-orange-700">{oldPlayers.length}/4 2005-2006</span></div>
+      <div><label className="text-sm text-gray-600">Data Partita</label><input type="date" className="w-full px-3 py-2 border rounded-lg" value={callUpData?.date || ''} onChange={e=>setCallUpData(v=>({...v,date:e.target.value}))}/></div>
+      <div><label className="text-sm text-gray-600">Orario Ritrovo</label><input type="time" className="w-full px-3 py-2 border rounded-lg" value={callUpData?.meetingTime || ''} onChange={e=>setCallUpData(v=>({...v,meetingTime:e.target.value}))}/></div>
+      <div><label className="text-sm text-gray-600">Calcio d'Inizio</label><input type="time" className="w-full px-3 py-2 border rounded-lg" value={callUpData?.kickoffTime || ''} onChange={e=>setCallUpData(v=>({...v,kickoffTime:e.target.value}))}/></div>
+      <div className="lg:col-span-2"><label className="text-sm text-gray-600">Indirizzo Campo</label><input className="w-full px-3 py-2 border rounded-lg" value={callUpData?.location || ''} onChange={e=>setCallUpData(v=>({...v,location:e.target.value}))}/></div>
+      <div className="flex items-center gap-3"><span className="badge bg-blue-100 text-blue-700">{selectedPlayers.length}/20 Selezionati</span><span className="badge bg-orange-100 text-orange-700">{oldPlayers.length}/4 2005-2006</span></div>
       <div className="lg:col-span-3"><button className="btn btn-primary" onClick={sendWhatsApp}><Send size={18}/>Invia su WhatsApp</button></div>
     </div>
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-      {players.map(p=>{ const isSel=callUpData.selectedPlayers.includes(p.id); const st=getPlayerWeekStats(p.id); return (
+      {players.map(p=>{ const isSel=selectedPlayers.includes(p.id); const st=getPlayerWeekStats(p.id); return (
         <button key={p.id} onClick={()=>togglePlayerCallUp(p.id)} className={`p-4 rounded-lg border-2 text-left transition ${isSel?'bg-blue-50 border-blue-500':'bg-gray-50 border-gray-300 hover:bg-gray-100'}`}>
           <div className="flex items-center justify-between"><span className="text-sm text-gray-500">N° {p.number}</span><span className={`badge ${p.birthYear<=2006?'bg-orange-100 text-orange-700':'bg-gray-100 text-gray-700'}`}>{p.birthYear}</span></div>
           <div className="font-semibold">{p.firstName} {p.lastName}</div>
