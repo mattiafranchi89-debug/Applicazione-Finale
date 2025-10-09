@@ -188,3 +188,28 @@ All endpoints use JSON for request/response bodies. Authentication endpoints san
   - ✅ API endpoints tested and functional (port 3001)
   - ✅ Static files served correctly with proper content types
   - ✅ Ready for production deployment on Replit
+
+### October 9, 2025 - Database Schema Fix for Call-ups
+**Resolved Blank Call-up Screen Issue**
+
+- **Problem Identified**: Call-up screen displayed blank page due to database schema mismatch
+  - CallUpData type requires: opponent, date, meetingTime, kickoffTime, location, selectedPlayers
+  - Database callups table was missing: opponent, date, updatedAt columns
+  - Frontend received incomplete data causing rendering failure
+  
+- **Solution Applied**:
+  - Added missing columns via SQL: `opponent`, `date`, `updatedAt`
+  - Updated existing callup record with valid default values
+  - Corrected JSONB column definition for `selectedPlayers` using `.$type<number[]>()`
+  - Verified API endpoint returns complete CallUpData structure
+  
+- **Technical Details**:
+  - Used direct SQL ALTER TABLE to avoid interactive drizzle-kit prompts
+  - Properly typed JSONB column for TypeScript compatibility
+  - Maintained data integrity with NOT NULL constraints and sensible defaults
+  
+- **Status**:
+  - ✅ Call-up screen schema corrected
+  - ✅ All CallUpData fields present in database
+  - ✅ API endpoint tested and functional
+  - ✅ Frontend receives complete data structure

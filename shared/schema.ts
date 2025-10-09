@@ -44,12 +44,14 @@ export const matches = pgTable('matches', {
 
 export const callups = pgTable('callups', {
   id: serial('id').primaryKey(),
-  matchId: integer('match_id'),
-  selectedPlayers: jsonb('selected_players').notNull(), // Array di player IDs
-  meetingTime: text('meeting_time'),
-  location: text('location'),
-  kickoffTime: text('kickoff_time'),
-  createdAt: timestamp('created_at').defaultNow()
+  opponent: text('opponent').notNull().default(''),
+  date: text('date').notNull().default(''),
+  meetingTime: text('meeting_time').notNull().default(''),
+  kickoffTime: text('kickoff_time').notNull().default(''),
+  location: text('location').notNull().default(''),
+  selectedPlayers: jsonb('selected_players').$type<number[]>().notNull(), // Array di player IDs
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
 });
 
 export const formations = pgTable('formations', {
