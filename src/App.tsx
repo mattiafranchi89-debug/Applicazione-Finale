@@ -147,27 +147,64 @@ export default function App(){
   const [openMatchId, setOpenMatchId] = useState<number|null>(null);
   const [formation, setFormation] = useState<FormationData>(initialFormation);
   const [authData, setAuthData] = useState<AuthData>(initialAuthData);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [callupId, setCallupId] = useState<number | null>(null);
 
   useEffect(()=>{
-    try{const r=localStorage.getItem(LS_KEYS.players); if(r) setPlayers(JSON.parse(r));}catch{}
-    try{const r=localStorage.getItem(LS_KEYS.trainings); if(r) setTrainings(JSON.parse(r));}catch{}
-    try{const r=localStorage.getItem(LS_KEYS.selectedWeek); if(r) setSelectedWeek(JSON.parse(r));}catch{}
-    try{const r=localStorage.getItem(LS_KEYS.matches); if(r) setMatches(JSON.parse(r));}catch{}
-    try{const r=localStorage.getItem(LS_KEYS.callup); if(r) setCallUpData(JSON.parse(r));}catch{}
-    try{const r=localStorage.getItem(LS_KEYS.formation); if(r) setFormation(JSON.parse(r));}catch{}
-    
-    // Load users from database (no localStorage for auth anymore)
-    api.auth.getUsers().then(users => {
-      setAuthData(prev => ({ ...prev, users }));
-    }).catch(err => console.error('Failed to load users:', err));
+    // Load all data from database
+    Promise.all([
+      api.players.getAll(),
+      api.trainings.getAll(),
+      api.matches.getAll(),
+      api.callups.getAll(),
+      api.formations.getLatest(),
+      api.settings.get(),
+      api.auth.getUsers()
+    ]).then(([playersData, trainingsData, matchesData, callupsData, formationData, settingsData, usersData]) => {
+      if (playersData.length > 0) setPlayers(playersData);
+      if (trainingsData.length > 0) setTrainings(trainingsData);
+      if (matchesData.length > 0) setMatches(matchesData);
+      if (callupsData.length > 0 && callupsData[0]) {
+        setCallUpData(callupsData[0]);
+        setCallupId(callupsData[0].id);
+      }
+      if (formationData) setFormation(formationData);
+      if (settingsData) setSelectedWeek(settingsData.selectedWeek);
+      setAuthData(prev => ({ ...prev, users: usersData }));
+      setDataLoaded(true);
+    }).catch(err => console.error('Failed to load data:', err));
   },[]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.players, JSON.stringify(players))}catch{} },[players]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.trainings, JSON.stringify(trainings))}catch{} },[trainings]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.selectedWeek, JSON.stringify(selectedWeek))}catch{} },[selectedWeek]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.matches, JSON.stringify(matches))}catch{} },[matches]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.callup, JSON.stringify(callUpData))}catch{} },[callUpData]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.formation, JSON.stringify(formation))}catch{} },[formation]);
-  // Auth is now in database, no localStorage needed
+  // All data now stored in database, no localStorage needed
+  
+  // Auto-save callUpData to database when it changes (only after initial load)
+  useEffect(() => {
+    if (!dataLoaded) return; // Wait until initial data is loaded
+    
+    const saveCallup = async () => {
+      if (callupId) {
+        await api.callups.update(callupId, callUpData);
+      } else {
+        const created = await api.callups.create(callUpData);
+        setCallupId(created.id);
+      }
+    };
+    saveCallup().catch(err => console.error('Failed to save callup:', err));
+  }, [callUpData, dataLoaded, callupId]);
+  
+  // Auto-save formation to database when it changes (only after initial load)
+  useEffect(() => {
+    if (!dataLoaded) return; // Wait until initial data is loaded
+    
+    const saveFormation = async () => {
+      if (formation.id) {
+        await api.formations.update(formation.id, formation);
+      } else {
+        const created = await api.formations.create(formation);
+        setFormation(created);
+      }
+    };
+    saveFormation().catch(err => console.error('Failed to save formation:', err));
+  }, [formation, dataLoaded]);
 
   useEffect(() => {
     const hasGoalEvents = matches.some(match => 
@@ -186,19 +223,44 @@ export default function App(){
         });
       }
     });
-    setPlayers(prev => prev.map(player => ({
-      ...player,
-      goals: goalsByPlayer[player.id] || 0
-    })));
+    
+    // Update players with new goal counts and save to database
+    const updatePlayerGoals = async () => {
+      const updatedPlayers = players.map(player => ({
+        ...player,
+        goals: goalsByPlayer[player.id] || 0
+      }));
+      
+      // Update each player in database
+      for (const player of updatedPlayers) {
+        if (players.find(p => p.id === player.id)?.goals !== player.goals) {
+          await api.players.update(player.id, { goals: player.goals });
+        }
+      }
+      
+      setPlayers(updatedPlayers);
+    };
+    
+    updatePlayerGoals().catch(err => console.error('Failed to update player goals:', err));
   }, [matches]);
 
   const totalGoals = useMemo(()=>players.reduce((s,p)=>s+p.goals,0),[players]);
   const playedMatches = useMemo(()=>matches.filter(m=>!!m.result).length,[matches]);
 
-  const toggleAttendance = (playerId:number, sessionIndex:number)=>{
-    setTrainings(prev=>prev.map(w=>{ if(w.id!==selectedWeek) return w; const sessions=[...w.sessions]; const s={...sessions[sessionIndex]}; s.attendance={...s.attendance,[playerId]:!s.attendance[playerId]}; sessions[sessionIndex]=s; return {...w, sessions}; }));
+  const toggleAttendance = async(playerId:number, sessionIndex:number)=>{
+    const week = trainings.find(w => w.id === selectedWeek);
+    if (!week) return;
+    
+    const sessions=[...week.sessions];
+    const s={...sessions[sessionIndex]};
+    s.attendance={...s.attendance,[playerId]:!s.attendance[playerId]};
+    sessions[sessionIndex]=s;
+    const updatedWeek = {...week, sessions};
+    
+    await api.trainings.update(week.id, { sessions });
+    setTrainings(prev=>prev.map(w=>w.id===selectedWeek?updatedWeek:w));
   };
-  const addNewWeek = ()=>{ setTrainings(prev=>{ const nextId = prev.length? Math.max(...prev.map(w=>w.id))+1:1; const last = prev[prev.length-1]; const d0 = new Date(last.sessions[0].date); d0.setDate(d0.getDate()+7); const d1 = new Date(d0); d1.setDate(d0.getDate()+2); const d2 = new Date(d0); d2.setDate(d0.getDate()+4); const nw:TrainingWeek = { id: nextId, week:`Settimana ${nextId}`, sessions:[{day:'Lunedì',date:d0.toISOString().slice(0,10),attendance:{}},{day:'Mercoledì',date:d1.toISOString().slice(0,10),attendance:{}},{day:'Venerdì',date:d2.toISOString().slice(0,10),attendance:{}}]}; const arr=[...prev,nw]; setSelectedWeek(nw.id); return arr; }); };
+  const addNewWeek = async()=>{ const last = trainings[trainings.length-1]; const d0 = new Date(last.sessions[0].date); d0.setDate(d0.getDate()+7); const d1 = new Date(d0); d1.setDate(d0.getDate()+2); const d2 = new Date(d0); d2.setDate(d0.getDate()+4); const nextNum = trainings.length + 1; const newWeek = await api.trainings.create({ weekNumber: nextNum, weekLabel:`Settimana ${nextNum}`, sessions:[{day:'Lunedì',date:d0.toISOString().slice(0,10),attendance:{}},{day:'Mercoledì',date:d1.toISOString().slice(0,10),attendance:{}},{day:'Venerdì',date:d2.toISOString().slice(0,10),attendance:{}}]}); setTrainings(prev=>[...prev,newWeek]); setSelectedWeek(newWeek.id); await api.settings.update({ selectedWeek: newWeek.id }); };
   const getPlayerWeekStats = (playerId:number)=>{ 
     const player = players.find(p => p.id === playerId);
     if (player && isCallUpOnly(player)) return {present:0,total:0,percentage:0};
@@ -329,7 +391,40 @@ export default function App(){
     }
   };
 
-  const resetLocalData = ()=>{ if (!confirm('Sei sicuro di voler cancellare i dati locali e tornare allo stato iniziale?')) return; try{ localStorage.removeItem(LS_KEYS.players); localStorage.removeItem(LS_KEYS.trainings); localStorage.removeItem(LS_KEYS.selectedWeek); localStorage.removeItem(LS_KEYS.matches); localStorage.removeItem(LS_KEYS.callup); localStorage.removeItem(LS_KEYS.formation);}catch{}; setPlayers(initialPlayers); setTrainings(initialTrainings); setSelectedWeek(1); setMatches(fixtures); setCallUpData(initialCallUp); setFormation(initialFormation); setOpenMatchId(null); };
+  const resetLocalData = async()=>{ 
+    if (!confirm('Sei sicuro di voler cancellare tutti i dati e tornare allo stato iniziale?')) return;
+    
+    try {
+      // Delete all data from database
+      const [playersData, trainingsData, matchesData, callupsData] = await Promise.all([
+        api.players.getAll(),
+        api.trainings.getAll(),
+        api.matches.getAll(),
+        api.callups.getAll()
+      ]);
+      
+      await Promise.all([
+        ...playersData.map(p => api.players.delete(p.id)),
+        ...trainingsData.map(t => api.trainings.update(t.id, { sessions: [] })),
+        ...matchesData.map(m => api.matches.update(m.id, { result: null, events: [] })),
+        ...callupsData.map(c => api.callups.update(c.id, { selectedPlayers: [] }))
+      ]);
+      
+      // Reset to initial state
+      setPlayers(initialPlayers);
+      setTrainings(initialTrainings);
+      setSelectedWeek(1);
+      setMatches(fixtures);
+      setCallUpData(initialCallUp);
+      setFormation(initialFormation);
+      setOpenMatchId(null);
+      
+      await api.settings.update({ selectedWeek: 1 });
+    } catch (err) {
+      console.error('Failed to reset data:', err);
+      alert('Errore durante il reset dei dati');
+    }
+  };
 
   const togglePlayerCallUp = (playerId:number)=>{ setCallUpData(prev=>{ const already=prev.selectedPlayers.includes(playerId); if(already) return {...prev, selectedPlayers: prev.selectedPlayers.filter(id=>id!==playerId)}; if(prev.selectedPlayers.length>=20){alert('Puoi convocare massimo 20 giocatori!'); return prev;} const p=players.find(x=>x.id===playerId)!; const selected=prev.selectedPlayers.map(id=>players.find(x=>x.id===id)!); const oldCount=selected.filter(x=>x.birthYear===2005||x.birthYear===2006).length; if((p.birthYear===2005||p.birthYear===2006)&&oldCount>=4){alert('Puoi convocare massimo 4 giocatori nati nel 2005 o 2006!'); return prev;} return {...prev, selectedPlayers:[...prev.selectedPlayers, playerId]}; }); };
   const sendWhatsApp = ()=>{ const grouped:Record<string,Player[]>= {'Portieri':[],'Terzini Destri':[],'Difensori Centrali':[],'Terzini Sinistri':[],'Centrocampisti Centrali':[],'Ali':[],'Attaccanti':[]}; const map:Record<Player["position"],string>={'Portiere':'Portieri','Terzino Destro':'Terzini Destri','Difensore Centrale':'Difensori Centrali','Terzino Sinistro':'Terzini Sinistri','Centrocampista Centrale':'Centrocampisti Centrali','Ala':'Ali','Attaccante':'Attaccanti'}; callUpData.selectedPlayers.forEach(id=>{ const p=players.find(x=>x.id===id); if(p) grouped[map[p.position]??'Attaccanti'].push(p); }); const numberEmojis=['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','1️⃣1️⃣','1️⃣2️⃣','1️⃣3️⃣','1️⃣4️⃣','1️⃣5️⃣','1️⃣6️⃣','1️⃣7️⃣','1️⃣8️⃣','1️⃣9️⃣','2️⃣0️⃣']; let c=0; let m=`⚽⚽⚽ JUNIORES PROVINCIALE – Girone B ⚽⚽⚽
@@ -351,7 +446,18 @@ export default function App(){
 Kit allenamento completo
 Calzettoni blu`; window.open(`https://wa.me/?text=${encodeURIComponent(m)}`,'_blank'); };
 
-  const updateMatch = (matchId:number, updater:(m:Match)=>Match)=> setMatches(prev=>prev.map(m=>m.id===matchId?updater(m):m));
+  const updateMatch = async(matchId:number, updater:(m:Match)=>Match)=> {
+    const match = matches.find(m => m.id === matchId);
+    if (!match) return;
+    const updated = updater(match);
+    await api.matches.update(matchId, updated);
+    setMatches(prev=>prev.map(m=>m.id===matchId?updated:m));
+  };
+  
+  const changeSelectedWeek = async(weekId:number)=> {
+    setSelectedWeek(weekId);
+    await api.settings.update({ selectedWeek: weekId });
+  };
   const openMatch = (id:number)=>setOpenMatchId(id);
   const closeMatch = ()=>setOpenMatchId(null);
   const selectedMatch = matches.find(m=>m.id===openMatchId)||null;
@@ -428,8 +534,8 @@ function Dashboard({totalPlayers,totalMatches,totalGoals,players}:{totalPlayers:
 
 function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendancePercent,exportMatchStatsCSV}:{players:Player[]; setPlayers:React.Dispatch<React.SetStateAction<Player[]>>; getPlayerTotalMinutes:(id:number)=>number; getPlayerAttendancePercent:(id:number)=>number; exportMatchStatsCSV:()=>void}){
   const [showAdd,setShowAdd]=useState(false); const [form,setForm]=useState<Partial<Player>>({position:'Attaccante',birthYear:2007});
-  const addPlayer=()=>{ if(!form.firstName||!form.lastName) return; const autoNumber = players.length > 0 ? Math.max(...players.map(p => p.number)) + 1 : 1; setPlayers(prev=>[...prev,{ id: prev.length? Math.max(...prev.map(p=>p.id))+1:1, firstName:form.firstName!, lastName:form.lastName!, number:autoNumber, position:(form.position??'Attaccante') as Player['position'], goals:0, presences:0, birthYear:Number(form.birthYear??2007) }]); setForm({position:'Attaccante',birthYear:2007}); setShowAdd(false); };
-  const deletePlayer=(id:number)=> setPlayers(prev=>prev.filter(p=>p.id!==id));
+  const addPlayer=async()=>{ if(!form.firstName||!form.lastName) return; const autoNumber = players.length > 0 ? Math.max(...players.map(p => p.number)) + 1 : 1; const newPlayer = await api.players.create({ firstName:form.firstName!, lastName:form.lastName!, number:autoNumber, position:(form.position??'Attaccante') as Player['position'], goals:0, assists:0, minutesPlayed:0, birthYear:Number(form.birthYear??2007) }); setPlayers(prev=>[...prev, newPlayer]); setForm({position:'Attaccante',birthYear:2007}); setShowAdd(false); };
+  const deletePlayer=async(id:number)=>{ await api.players.delete(id); setPlayers(prev=>prev.filter(p=>p.id!==id)); };
   
   const regularPlayers = players.filter(p => p.birthYear !== 2009);
   const callUpOnlyPlayers = players.filter(p => p.birthYear === 2009);
@@ -471,7 +577,7 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
       <button className="btn btn-primary" onClick={addNewWeek}>Nuova Settimana</button>
       <div className="ml-auto flex items-center gap-2">
         <span className="text-sm text-gray-600">Seleziona Settimana</span>
-        <select className="px-3 py-2 border rounded-lg" value={selectedWeek} onChange={e=>setSelectedWeek(Number(e.target.value))}>
+        <select className="px-3 py-2 border rounded-lg" value={selectedWeek} onChange={e=>changeSelectedWeek(Number(e.target.value))}>
           {trainings.map(t=> <option key={t.id} value={t.id}>{t.week}</option>) }
         </select>
       </div>

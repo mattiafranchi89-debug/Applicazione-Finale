@@ -3,7 +3,7 @@ import cors from 'cors';
 import bcrypt from 'bcrypt';
 import { db } from './db.js';
 import { users, players, trainings, matches, callups, formations, appSettings } from '../shared/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 
 const app = express();
 const PORT = 3001;
@@ -132,13 +132,15 @@ app.get('/api/callups', async (req, res) => {
 });
 
 app.post('/api/callups', async (req, res) => {
-  const [newCallup] = await db.insert(callups).values(req.body).returning();
+  const { id, createdAt, updatedAt, ...insertData } = req.body;
+  const [newCallup] = await db.insert(callups).values(insertData).returning();
   res.json(newCallup);
 });
 
 app.put('/api/callups/:id', async (req, res) => {
+  const { id, createdAt, updatedAt, ...updateData } = req.body;
   const [updated] = await db.update(callups)
-    .set(req.body)
+    .set(updateData)
     .where(eq(callups.id, parseInt(req.params.id)))
     .returning();
   res.json(updated);
@@ -151,13 +153,15 @@ app.get('/api/formations/latest', async (req, res) => {
 });
 
 app.post('/api/formations', async (req, res) => {
-  const [newFormation] = await db.insert(formations).values(req.body).returning();
+  const { id, createdAt, updatedAt, ...insertData } = req.body;
+  const [newFormation] = await db.insert(formations).values(insertData).returning();
   res.json(newFormation);
 });
 
 app.put('/api/formations/:id', async (req, res) => {
+  const { id, createdAt, updatedAt, ...updateData } = req.body;
   const [updated] = await db.update(formations)
-    .set({ ...req.body, updatedAt: new Date() })
+    .set({ ...updateData, updatedAt: sql`now()` })
     .where(eq(formations.id, parseInt(req.params.id)))
     .returning();
   res.json(updated);
@@ -177,8 +181,9 @@ app.get('/api/settings', async (req, res) => {
 app.put('/api/settings', async (req, res) => {
   const [settings] = await db.select().from(appSettings).limit(1);
   if (settings) {
+    const { id, createdAt, updatedAt, ...updateData } = req.body;
     const [updated] = await db.update(appSettings)
-      .set({ ...req.body, updatedAt: new Date() })
+      .set({ ...updateData, updatedAt: sql`now()` })
       .where(eq(appSettings.id, settings.id))
       .returning();
     res.json(updated);
