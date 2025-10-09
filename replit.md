@@ -216,3 +216,6 @@ All endpoints use JSON for request/response bodies. Authentication endpoints san
   - ✅ Added defensive checks in CallUpTab component
   - ✅ Data validation on load ensures all fields have defaults
   - ✅ Optional chaining prevents crashes from missing fields
+  - ✅ Fixed all direct accesses to selectedPlayers with Array.isArray guards
+  - ✅ Normalized database data to ensure JSON array format
+  - ✅ Complete crash protection in togglePlayerCallUp and sendWhatsApp functions
