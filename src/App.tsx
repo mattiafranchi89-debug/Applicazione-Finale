@@ -1,8 +1,9 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { Users, Calendar, TrendingUp, UserPlus, Trash2, Award, Activity, ClipboardCheck, CheckCircle, XCircle, Trophy, Target, Send, Pencil, Plus, Trash, FlagTriangleRight, RotateCcw, LogOut, UserCog, Key } from 'lucide-react';
+import { api } from './api';
 
-type AuthUser = { username: string; password: string; email: string; role: 'admin' | 'user' };
+type AuthUser = { username: string; password?: string; email: string; role: 'admin' | 'user' };
 type AuthData = { currentUser: AuthUser | null; users: AuthUser[] };
 
 type Player = { id:number; firstName:string; lastName:string; number:number; position:"Portiere"|"Terzino Destro"|"Difensore Centrale"|"Terzino Sinistro"|"Centrocampista Centrale"|"Ala"|"Attaccante"; goals:number; presences:number; birthYear:number; };
@@ -154,7 +155,11 @@ export default function App(){
     try{const r=localStorage.getItem(LS_KEYS.matches); if(r) setMatches(JSON.parse(r));}catch{}
     try{const r=localStorage.getItem(LS_KEYS.callup); if(r) setCallUpData(JSON.parse(r));}catch{}
     try{const r=localStorage.getItem(LS_KEYS.formation); if(r) setFormation(JSON.parse(r));}catch{}
-    try{const r=localStorage.getItem(LS_KEYS.auth); if(r) setAuthData(JSON.parse(r));}catch{}
+    
+    // Load users from database (no localStorage for auth anymore)
+    api.auth.getUsers().then(users => {
+      setAuthData(prev => ({ ...prev, users }));
+    }).catch(err => console.error('Failed to load users:', err));
   },[]);
   useEffect(()=>{ try{localStorage.setItem(LS_KEYS.players, JSON.stringify(players))}catch{} },[players]);
   useEffect(()=>{ try{localStorage.setItem(LS_KEYS.trainings, JSON.stringify(trainings))}catch{} },[trainings]);
@@ -162,7 +167,7 @@ export default function App(){
   useEffect(()=>{ try{localStorage.setItem(LS_KEYS.matches, JSON.stringify(matches))}catch{} },[matches]);
   useEffect(()=>{ try{localStorage.setItem(LS_KEYS.callup, JSON.stringify(callUpData))}catch{} },[callUpData]);
   useEffect(()=>{ try{localStorage.setItem(LS_KEYS.formation, JSON.stringify(formation))}catch{} },[formation]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.auth, JSON.stringify(authData))}catch{} },[authData]);
+  // Auth is now in database, no localStorage needed
 
   useEffect(() => {
     const hasGoalEvents = matches.some(match => 
@@ -278,13 +283,18 @@ export default function App(){
     document.body.removeChild(link);
   };
 
-  const handleLogin = (username: string, password: string): boolean => {
-    const user = authData.users.find(u => u.username === username && u.password === password);
-    if (user) {
-      setAuthData(prev => ({ ...prev, currentUser: user }));
-      return true;
+  const handleLogin = async (username: string, password: string): Promise<boolean> => {
+    try {
+      const response = await api.auth.login(username, password);
+      if (response.success) {
+        setAuthData(prev => ({ ...prev, currentUser: response.user }));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
   const handleLogout = () => {
@@ -292,20 +302,31 @@ export default function App(){
     setActiveTab('dashboard');
   };
 
-  const addUser = (username: string, password: string, email: string) => {
-    const newUser: AuthUser = { username, password, email, role: 'user' };
-    setAuthData(prev => ({ ...prev, users: [...prev.users, newUser] }));
+  const addUser = async (username: string, password: string, email: string) => {
+    try {
+      const newUser = await api.auth.createUser(username, password, email);
+      setAuthData(prev => ({ ...prev, users: [...prev.users, newUser] }));
+    } catch (error) {
+      console.error('Add user error:', error);
+    }
   };
 
-  const deleteUser = (username: string) => {
-    setAuthData(prev => ({ ...prev, users: prev.users.filter(u => u.username !== username) }));
+  const deleteUser = async (username: string) => {
+    try {
+      await api.auth.deleteUser(username);
+      setAuthData(prev => ({ ...prev, users: prev.users.filter(u => u.username !== username) }));
+    } catch (error) {
+      console.error('Delete user error:', error);
+    }
   };
 
-  const updateUserPassword = (username: string, newPassword: string) => {
-    setAuthData(prev => ({
-      ...prev,
-      users: prev.users.map(u => u.username === username ? { ...u, password: newPassword } : u)
-    }));
+  const updateUserPassword = async (username: string, newPassword: string) => {
+    try {
+      await api.auth.updatePassword(username, newPassword);
+      // Password is not returned, so we just keep the user data as is
+    } catch (error) {
+      console.error('Update password error:', error);
+    }
   };
 
   const resetLocalData = ()=>{ if (!confirm('Sei sicuro di voler cancellare i dati locali e tornare allo stato iniziale?')) return; try{ localStorage.removeItem(LS_KEYS.players); localStorage.removeItem(LS_KEYS.trainings); localStorage.removeItem(LS_KEYS.selectedWeek); localStorage.removeItem(LS_KEYS.matches); localStorage.removeItem(LS_KEYS.callup); localStorage.removeItem(LS_KEYS.formation);}catch{}; setPlayers(initialPlayers); setTrainings(initialTrainings); setSelectedWeek(1); setMatches(fixtures); setCallUpData(initialCallUp); setFormation(initialFormation); setOpenMatchId(null); };
@@ -858,15 +879,15 @@ function FormationBuilder({players, formation, setFormation}:{players:Player[]; 
   );
 }
 
-function LoginPage({ onLogin }: { onLogin: (username: string, password: string) => boolean }) {
+function LoginPage({ onLogin }: { onLogin: (username: string, password: string) => Promise<boolean> }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = onLogin(username, password);
+    const success = await onLogin(username, password);
     if (!success) {
       setError('Credenziali non valide');
     }
