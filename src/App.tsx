@@ -6,7 +6,7 @@ import { api } from './api';
 type AuthUser = { username: string; password?: string; email: string; role: 'admin' | 'user' };
 type AuthData = { currentUser: AuthUser | null; users: AuthUser[] };
 
-type Player = { id:number; firstName:string; lastName:string; number:number; position:"Portiere"|"Terzino Destro"|"Difensore Centrale"|"Terzino Sinistro"|"Centrocampista Centrale"|"Ala"|"Attaccante"; goals:number; presences:number; birthYear:number; };
+type Player = { id:number; firstName:string; lastName:string; number:number; position:"Portiere"|"Terzino Destro"|"Difensore Centrale"|"Terzino Sinistro"|"Centrocampista Centrale"|"Ala"|"Attaccante"; goals:number; presences:number; birthYear:number; yellowCards:number; redCards:number; };
 
 type TeamSide = 'SEGURO'|'AVVERSARI';
 
@@ -29,25 +29,25 @@ type CallUpData = { opponent:string; date:string; meetingTime:string; kickoffTim
 type FormationData = { id?: number; module: string; positions: Record<string, number | null>; substitutes?: (number | null)[] };
 
 const initialPlayers: Player[] = [
-  { id: 1, firstName: 'Gabriele', lastName: 'Russo', number: 1, position: 'Portiere', goals: 0, presences: 12, birthYear: 2007 },
-  { id: 2, firstName: 'Andrea', lastName: 'Capasso', number: 12, position: 'Portiere', goals: 0, presences: 11, birthYear: 2007 },
-  { id: 3, firstName: 'Gabriele', lastName: 'Lucchini', number: 2, position: 'Terzino Destro', goals: 1, presences: 12, birthYear: 2006 },
-  { id: 4, firstName: 'Davide', lastName: 'Toscano', number: 3, position: 'Terzino Destro', goals: 0, presences: 10, birthYear: 2007 },
-  { id: 5, firstName: 'Giovanni', lastName: 'Montalto', number: 4, position: 'Difensore Centrale', goals: 2, presences: 11, birthYear: 2006 },
-  { id: 6, firstName: 'Massimo', lastName: 'Calvone', number: 5, position: 'Difensore Centrale', goals: 1, presences: 10, birthYear: 2007 },
-  { id: 7, firstName: 'Elia', lastName: 'Restivo', number: 6, position: 'Terzino Sinistro', goals: 0, presences: 12, birthYear: 2007 },
-  { id: 8, firstName: 'Lorenzo', lastName: 'Dopinto', number: 8, position: 'Centrocampista Centrale', goals: 3, presences: 11, birthYear: 2006 },
-  { id: 9, firstName: 'Filippo', lastName: 'Lesino', number: 7, position: 'Centrocampista Centrale', goals: 2, presences: 12, birthYear: 2007 },
-  { id: 10, firstName: 'Riccardo', lastName: 'Brocca', number: 10, position: 'Centrocampista Centrale', goals: 4, presences: 11, birthYear: 2005 },
-  { id: 11, firstName: 'Filippo', lastName: 'Cogliati', number: 11, position: 'Ala', goals: 5, presences: 12, birthYear: 2007 },
-  { id: 12, firstName: 'Abdullah', lastName: 'Tahsif', number: 14, position: 'Ala', goals: 3, presences: 10, birthYear: 2007 },
-  { id: 13, firstName: 'Afif', lastName: 'Adam', number: 15, position: 'Ala', goals: 2, presences: 11, birthYear: 2007 },
-  { id: 14, firstName: 'Cristian', lastName: "D'Agostino", number: 16, position: 'Ala', goals: 4, presences: 12, birthYear: 2006 },
-  { id: 15, firstName: 'Gabriele', lastName: 'Mazzei', number: 17, position: 'Ala', goals: 3, presences: 11, birthYear: 2007 },
-  { id: 16, firstName: 'Andrei', lastName: 'Dorosan', number: 9, position: 'Attaccante', goals: 8, presences: 12, birthYear: 2007 },
-  { id: 17, firstName: 'Gaetano', lastName: 'Cristian', number: 18, position: 'Attaccante', goals: 6, presences: 11, birthYear: 2007 },
-  { id: 18, firstName: 'Domenico', lastName: 'Romito', number: 19, position: 'Attaccante', goals: 7, presences: 10, birthYear: 2007 },
-  { id: 19, firstName: 'Enrico', lastName: 'Amelotti', number: 20, position: 'Attaccante', goals: 5, presences: 12, birthYear: 2007 },
+  { id: 1, firstName: 'Gabriele', lastName: 'Russo', number: 1, position: 'Portiere', goals: 0, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 2, firstName: 'Andrea', lastName: 'Capasso', number: 12, position: 'Portiere', goals: 0, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 3, firstName: 'Gabriele', lastName: 'Lucchini', number: 2, position: 'Terzino Destro', goals: 1, presences: 12, birthYear: 2006, yellowCards: 0, redCards: 0 },
+  { id: 4, firstName: 'Davide', lastName: 'Toscano', number: 3, position: 'Terzino Destro', goals: 0, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 5, firstName: 'Giovanni', lastName: 'Montalto', number: 4, position: 'Difensore Centrale', goals: 2, presences: 11, birthYear: 2006, yellowCards: 0, redCards: 0 },
+  { id: 6, firstName: 'Massimo', lastName: 'Calvone', number: 5, position: 'Difensore Centrale', goals: 1, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 7, firstName: 'Elia', lastName: 'Restivo', number: 6, position: 'Terzino Sinistro', goals: 0, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 8, firstName: 'Lorenzo', lastName: 'Dopinto', number: 8, position: 'Centrocampista Centrale', goals: 3, presences: 11, birthYear: 2006, yellowCards: 0, redCards: 0 },
+  { id: 9, firstName: 'Filippo', lastName: 'Lesino', number: 7, position: 'Centrocampista Centrale', goals: 2, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 10, firstName: 'Riccardo', lastName: 'Brocca', number: 10, position: 'Centrocampista Centrale', goals: 4, presences: 11, birthYear: 2005, yellowCards: 0, redCards: 0 },
+  { id: 11, firstName: 'Filippo', lastName: 'Cogliati', number: 11, position: 'Ala', goals: 5, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 12, firstName: 'Abdullah', lastName: 'Tahsif', number: 14, position: 'Ala', goals: 3, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 13, firstName: 'Afif', lastName: 'Adam', number: 15, position: 'Ala', goals: 2, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 14, firstName: 'Cristian', lastName: "D'Agostino", number: 16, position: 'Ala', goals: 4, presences: 12, birthYear: 2006, yellowCards: 0, redCards: 0 },
+  { id: 15, firstName: 'Gabriele', lastName: 'Mazzei', number: 17, position: 'Ala', goals: 3, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 16, firstName: 'Andrei', lastName: 'Dorosan', number: 9, position: 'Attaccante', goals: 8, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 17, firstName: 'Gaetano', lastName: 'Cristian', number: 18, position: 'Attaccante', goals: 6, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 18, firstName: 'Domenico', lastName: 'Romito', number: 19, position: 'Attaccante', goals: 7, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 19, firstName: 'Enrico', lastName: 'Amelotti', number: 20, position: 'Attaccante', goals: 5, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
 ];
 
 const fixtures: Match[] = [
@@ -220,11 +220,6 @@ export default function App(){
   }, [formation, dataLoaded]); // Removed formationId from dependencies to prevent infinite loop
 
   useEffect(() => {
-    const hasGoalEvents = matches.some(match => 
-      match.events?.some(event => event.type === 'GOAL' && event.team === 'SEGURO')
-    );
-    if (!hasGoalEvents) return;
-    
     const goalsByPlayer: Record<number, number> = {};
     matches.forEach(match => {
       if (match.events) {
@@ -255,6 +250,46 @@ export default function App(){
     };
     
     updatePlayerGoals().catch(err => console.error('Failed to update player goals:', err));
+  }, [matches]);
+
+  useEffect(() => {
+    const yellowCardsByPlayer: Record<number, number> = {};
+    const redCardsByPlayer: Record<number, number> = {};
+    matches.forEach(match => {
+      if (match.events) {
+        match.events.forEach(event => {
+          if ((event.type === 'YELLOW' || event.type === 'RED') && event.team === 'SEGURO' && (event as any).playerId) {
+            const playerId = (event as any).playerId;
+            if (event.type === 'YELLOW') {
+              yellowCardsByPlayer[playerId] = (yellowCardsByPlayer[playerId] || 0) + 1;
+            } else if (event.type === 'RED') {
+              redCardsByPlayer[playerId] = (redCardsByPlayer[playerId] || 0) + 1;
+            }
+          }
+        });
+      }
+    });
+    
+    // Update players with new card counts and save to database
+    const updatePlayerCards = async () => {
+      const updatedPlayers = players.map(player => ({
+        ...player,
+        yellowCards: yellowCardsByPlayer[player.id] || 0,
+        redCards: redCardsByPlayer[player.id] || 0
+      }));
+      
+      // Update each player in database
+      for (const player of updatedPlayers) {
+        const currentPlayer = players.find(p => p.id === player.id);
+        if (currentPlayer?.yellowCards !== player.yellowCards || currentPlayer?.redCards !== player.redCards) {
+          await api.players.update(player.id, { yellowCards: player.yellowCards, redCards: player.redCards });
+        }
+      }
+      
+      setPlayers(updatedPlayers);
+    };
+    
+    updatePlayerCards().catch(err => console.error('Failed to update player cards:', err));
   }, [matches]);
 
   const totalGoals = useMemo(()=>players.reduce((s,p)=>s+p.goals,0),[players]);
