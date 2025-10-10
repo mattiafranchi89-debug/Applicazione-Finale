@@ -19,6 +19,8 @@ export const players = pgTable('players', {
   goals: integer('goals').notNull().default(0),
   assists: integer('assists').notNull().default(0),
   minutesPlayed: integer('minutes_played').notNull().default(0),
+  yellowCards: integer('yellow_cards').notNull().default(0),
+  redCards: integer('red_cards').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow()
 });
 
