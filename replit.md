@@ -47,3 +47,47 @@ The application is built with a React frontend using TypeScript and Vite, styled
 - **Lucide React**: Icon library.
 - **Tuttocampo.it**: Integrated for external widgets displaying live results, league standings, and top scorers.
 - **WhatsApp**: Integration for sending formatted call-up messages.
+
+## Recent Changes
+
+### October 10, 2025 - User Registration Feature
+**Self-Service Account Creation**
+
+- **Frontend Enhancements**:
+  - Added toggle between login and sign-up forms in LoginPage component
+  - Registration form includes: username, email, password, and password confirmation
+  - Client-side validation: password length (min 6 chars) and password match
+  - Responsive error/success messaging with proper backend error surfacing
+  - Auto-redirect to login after successful registration (2 seconds)
+  
+- **Backend Improvements**:
+  - Duplicate username detection with meaningful error messages
+  - Proper HTTP status codes: 400 for validation errors, 500 for server errors
+  - Password hashing with bcrypt (10 salt rounds)
+  - New users created with 'user' role (non-admin)
+  
+- **Security & UX**:
+  - Password fields cleared immediately after successful registration
+  - All form fields cleared when switching between login/signup
+  - Frontend properly checks response.ok before showing success
+  - Backend errors surfaced to user with Italian messages
+  
+- **Testing**:
+  - ✅ Registration flow tested and verified
+  - ✅ Duplicate username detection working
+  - ✅ Password validation working
+  - ✅ Login with newly created accounts working
+  
+- **Configuration Fixes**:
+  - Fixed Vite allowedHosts to support Replit preview (no more "Blocked request" errors)
+  - Added empty request body validation in player update endpoint
+  - Added player existence checks in stats update useEffects
+
+### October 10, 2025 - Yellow and Red Cards Feature
+**Complete Cards Tracking System**
+
+- **Database Schema**: Extended players table with yellowCards and redCards columns
+- **Dashboard**: Added "🟨🟥 Ammonizioni ed Espulsioni" section with total cards and top 5 disciplined players
+- **Player Tables**: Added 🟨 and 🟥 columns showing individual card counts
+- **Automatic Tracking**: Cards synced from match events with database persistence
+- **Bug Fix**: Cards and goals reset correctly when events are removed

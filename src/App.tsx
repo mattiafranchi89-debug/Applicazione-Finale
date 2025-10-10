@@ -1049,16 +1049,63 @@ function FormationBuilder({players, formation, setFormation}:{players:Player[]; 
 }
 
 function LoginPage({ onLogin }: { onLogin: (username: string, password: string) => Promise<boolean> }) {
+  const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = await onLogin(username, password);
-    if (!success) {
+    setError('');
+    const loginSuccess = await onLogin(username, password);
+    if (!loginSuccess) {
       setError('Credenziali non valide');
+    }
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (password !== confirmPassword) {
+      setError('Le password non coincidono');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('La password deve essere di almeno 6 caratteri');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, email })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Errore sconosciuto' }));
+        setError(errorData.error || 'Errore durante la registrazione. Username potrebbe essere già in uso.');
+        return;
+      }
+
+      setSuccess('Registrazione completata! Ora puoi accedere.');
+      setPassword('');
+      setConfirmPassword('');
+      setTimeout(() => {
+        setIsSignUp(false);
+        setSuccess('');
+        setUsername('');
+        setEmail('');
+      }, 2000);
+    } catch (err) {
+      setError('Errore di connessione. Riprova più tardi.');
     }
   };
 
@@ -1071,68 +1118,181 @@ function LoginPage({ onLogin }: { onLogin: (username: string, password: string) 
           <p className="text-gray-600 mt-2">Sistema di Gestione Squadra</p>
         </div>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nome Utente</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Inserisci nome utente"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Inserisci password"
-              required
-            />
-          </div>
-          
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
+        {!isSignUp ? (
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nome Utente</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Inserisci nome utente"
+                required
+              />
             </div>
-          )}
-
-          {showForgotPassword && (
-            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-sm">
-              Per recuperare la password, contatta l'amministratore:<br/>
-              <strong>mattia.franchi89@gmail.com</strong>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Inserisci password"
+                required
+              />
             </div>
-          )}
-          
-          <button
-            type="submit"
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-          >
-            Accedi
-          </button>
+            
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
 
-          <div className="text-center">
+            {showForgotPassword && (
+              <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-sm">
+                Per recuperare la password, contatta l'amministratore:<br/>
+                <strong>mattia.franchi89@gmail.com</strong>
+              </div>
+            )}
+            
             <button
-              type="button"
-              onClick={() => setShowForgotPassword(!showForgotPassword)}
-              className="text-sm text-blue-600 hover:text-blue-800 underline"
+              type="submit"
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
             >
-              Password dimenticata?
+              Accedi
             </button>
-          </div>
-        </form>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(!showForgotPassword)}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Password dimenticata?
+              </button>
+            </div>
+
+            <div className="text-center mt-4">
+              <p className="text-sm text-gray-600">
+                Non hai un account?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(true);
+                    setError('');
+                    setUsername('');
+                    setPassword('');
+                  }}
+                  className="text-blue-600 hover:text-blue-800 font-semibold underline"
+                >
+                  Registrati
+                </button>
+              </p>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleSignUp} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nome Utente</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Scegli un nome utente"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Inserisci email"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Crea una password (min. 6 caratteri)"
+                required
+                minLength={6}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Conferma Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Ripeti la password"
+                required
+              />
+            </div>
+            
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                {success}
+              </div>
+            )}
+            
+            <button
+              type="submit"
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+            >
+              Registrati
+            </button>
+
+            <div className="text-center mt-4">
+              <p className="text-sm text-gray-600">
+                Hai già un account?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(false);
+                    setError('');
+                    setSuccess('');
+                    setUsername('');
+                    setPassword('');
+                    setEmail('');
+                    setConfirmPassword('');
+                  }}
+                  className="text-blue-600 hover:text-blue-800 font-semibold underline"
+                >
+                  Accedi
+                </button>
+              </p>
+            </div>
+          </form>
+        )}
         
-        <div className="mt-6 pt-4 border-t border-gray-200">
-          <p className="text-xs text-gray-500 text-center">
-            💡 <strong>Primo accesso?</strong> Usa le credenziali admin predefinite:<br/>
-            Username: <code className="bg-gray-100 px-1 rounded">admin</code> | Password: <code className="bg-gray-100 px-1 rounded">admin2024</code>
-          </p>
-        </div>
+        {!isSignUp && (
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <p className="text-xs text-gray-500 text-center">
+              💡 <strong>Primo accesso?</strong> Usa le credenziali admin predefinite:<br/>
+              Username: <code className="bg-gray-100 px-1 rounded">admin</code> | Password: <code className="bg-gray-100 px-1 rounded">admin2024</code>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
