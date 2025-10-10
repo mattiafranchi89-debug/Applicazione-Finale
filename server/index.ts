@@ -42,10 +42,22 @@ app.get('/api/auth/users', async (req, res) => {
 });
 
 app.post('/api/auth/users', async (req, res) => {
-  const { username, password, email } = req.body;
-  const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-  const [newUser] = await db.insert(users).values({ username, password: hashedPassword, email, role: 'user' }).returning();
-  res.json(sanitizeUser(newUser));
+  try {
+    const { username, password, email } = req.body;
+    
+    // Check if username already exists
+    const [existingUser] = await db.select().from(users).where(eq(users.username, username));
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username già in uso. Scegline un altro.' });
+    }
+    
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+    const [newUser] = await db.insert(users).values({ username, password: hashedPassword, email, role: 'user' }).returning();
+    res.json(sanitizeUser(newUser));
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
 });
 
 app.delete('/api/auth/users/:username', async (req, res) => {
