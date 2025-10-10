@@ -1,11 +1,12 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { Users, Calendar, TrendingUp, UserPlus, Trash2, Award, Activity, ClipboardCheck, CheckCircle, XCircle, Trophy, Target, Send, Pencil, Plus, Trash, FlagTriangleRight, RotateCcw, LogOut, UserCog, Key } from 'lucide-react';
+import { api } from './api';
 
-type AuthUser = { username: string; password: string; email: string; role: 'admin' | 'user' };
+type AuthUser = { username: string; password?: string; email: string; role: 'admin' | 'user' };
 type AuthData = { currentUser: AuthUser | null; users: AuthUser[] };
 
-type Player = { id:number; firstName:string; lastName:string; number:number; position:"Portiere"|"Terzino Destro"|"Difensore Centrale"|"Terzino Sinistro"|"Centrocampista Centrale"|"Ala"|"Attaccante"; goals:number; presences:number; birthYear:number; };
+type Player = { id:number; firstName:string; lastName:string; number:number; position:"Portiere"|"Terzino Destro"|"Difensore Centrale"|"Terzino Sinistro"|"Centrocampista Centrale"|"Ala"|"Attaccante"; goals:number; presences:number; birthYear:number; yellowCards:number; redCards:number; };
 
 type TeamSide = 'SEGURO'|'AVVERSARI';
 
@@ -25,28 +26,28 @@ type TrainingWeek = { id:number; week:string; sessions:TrainingSession[] };
 
 type CallUpData = { opponent:string; date:string; meetingTime:string; kickoffTime:string; location:string; selectedPlayers:number[] };
 
-type FormationData = { module: string; positions: Record<string, number | null>; substitutes?: (number | null)[] };
+type FormationData = { id?: number; module: string; positions: Record<string, number | null>; substitutes?: (number | null)[] };
 
 const initialPlayers: Player[] = [
-  { id: 1, firstName: 'Gabriele', lastName: 'Russo', number: 1, position: 'Portiere', goals: 0, presences: 12, birthYear: 2007 },
-  { id: 2, firstName: 'Andrea', lastName: 'Capasso', number: 12, position: 'Portiere', goals: 0, presences: 11, birthYear: 2007 },
-  { id: 3, firstName: 'Gabriele', lastName: 'Lucchini', number: 2, position: 'Terzino Destro', goals: 1, presences: 12, birthYear: 2006 },
-  { id: 4, firstName: 'Davide', lastName: 'Toscano', number: 3, position: 'Terzino Destro', goals: 0, presences: 10, birthYear: 2007 },
-  { id: 5, firstName: 'Giovanni', lastName: 'Montalto', number: 4, position: 'Difensore Centrale', goals: 2, presences: 11, birthYear: 2006 },
-  { id: 6, firstName: 'Massimo', lastName: 'Calvone', number: 5, position: 'Difensore Centrale', goals: 1, presences: 10, birthYear: 2007 },
-  { id: 7, firstName: 'Elia', lastName: 'Restivo', number: 6, position: 'Terzino Sinistro', goals: 0, presences: 12, birthYear: 2007 },
-  { id: 8, firstName: 'Lorenzo', lastName: 'Dopinto', number: 8, position: 'Centrocampista Centrale', goals: 3, presences: 11, birthYear: 2006 },
-  { id: 9, firstName: 'Filippo', lastName: 'Lesino', number: 7, position: 'Centrocampista Centrale', goals: 2, presences: 12, birthYear: 2007 },
-  { id: 10, firstName: 'Riccardo', lastName: 'Brocca', number: 10, position: 'Centrocampista Centrale', goals: 4, presences: 11, birthYear: 2005 },
-  { id: 11, firstName: 'Filippo', lastName: 'Cogliati', number: 11, position: 'Ala', goals: 5, presences: 12, birthYear: 2007 },
-  { id: 12, firstName: 'Abdullah', lastName: 'Tahsif', number: 14, position: 'Ala', goals: 3, presences: 10, birthYear: 2007 },
-  { id: 13, firstName: 'Afif', lastName: 'Adam', number: 15, position: 'Ala', goals: 2, presences: 11, birthYear: 2007 },
-  { id: 14, firstName: 'Cristian', lastName: "D'Agostino", number: 16, position: 'Ala', goals: 4, presences: 12, birthYear: 2006 },
-  { id: 15, firstName: 'Gabriele', lastName: 'Mazzei', number: 17, position: 'Ala', goals: 3, presences: 11, birthYear: 2007 },
-  { id: 16, firstName: 'Andrei', lastName: 'Dorosan', number: 9, position: 'Attaccante', goals: 8, presences: 12, birthYear: 2007 },
-  { id: 17, firstName: 'Gaetano', lastName: 'Cristian', number: 18, position: 'Attaccante', goals: 6, presences: 11, birthYear: 2007 },
-  { id: 18, firstName: 'Domenico', lastName: 'Romito', number: 19, position: 'Attaccante', goals: 7, presences: 10, birthYear: 2007 },
-  { id: 19, firstName: 'Enrico', lastName: 'Amelotti', number: 20, position: 'Attaccante', goals: 5, presences: 12, birthYear: 2007 },
+  { id: 1, firstName: 'Gabriele', lastName: 'Russo', number: 1, position: 'Portiere', goals: 0, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 2, firstName: 'Andrea', lastName: 'Capasso', number: 12, position: 'Portiere', goals: 0, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 3, firstName: 'Gabriele', lastName: 'Lucchini', number: 2, position: 'Terzino Destro', goals: 1, presences: 12, birthYear: 2006, yellowCards: 0, redCards: 0 },
+  { id: 4, firstName: 'Davide', lastName: 'Toscano', number: 3, position: 'Terzino Destro', goals: 0, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 5, firstName: 'Giovanni', lastName: 'Montalto', number: 4, position: 'Difensore Centrale', goals: 2, presences: 11, birthYear: 2006, yellowCards: 0, redCards: 0 },
+  { id: 6, firstName: 'Massimo', lastName: 'Calvone', number: 5, position: 'Difensore Centrale', goals: 1, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 7, firstName: 'Elia', lastName: 'Restivo', number: 6, position: 'Terzino Sinistro', goals: 0, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 8, firstName: 'Lorenzo', lastName: 'Dopinto', number: 8, position: 'Centrocampista Centrale', goals: 3, presences: 11, birthYear: 2006, yellowCards: 0, redCards: 0 },
+  { id: 9, firstName: 'Filippo', lastName: 'Lesino', number: 7, position: 'Centrocampista Centrale', goals: 2, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 10, firstName: 'Riccardo', lastName: 'Brocca', number: 10, position: 'Centrocampista Centrale', goals: 4, presences: 11, birthYear: 2005, yellowCards: 0, redCards: 0 },
+  { id: 11, firstName: 'Filippo', lastName: 'Cogliati', number: 11, position: 'Ala', goals: 5, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 12, firstName: 'Abdullah', lastName: 'Tahsif', number: 14, position: 'Ala', goals: 3, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 13, firstName: 'Afif', lastName: 'Adam', number: 15, position: 'Ala', goals: 2, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 14, firstName: 'Cristian', lastName: "D'Agostino", number: 16, position: 'Ala', goals: 4, presences: 12, birthYear: 2006, yellowCards: 0, redCards: 0 },
+  { id: 15, firstName: 'Gabriele', lastName: 'Mazzei', number: 17, position: 'Ala', goals: 3, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 16, firstName: 'Andrei', lastName: 'Dorosan', number: 9, position: 'Attaccante', goals: 8, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 17, firstName: 'Gaetano', lastName: 'Cristian', number: 18, position: 'Attaccante', goals: 6, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 18, firstName: 'Domenico', lastName: 'Romito', number: 19, position: 'Attaccante', goals: 7, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
+  { id: 19, firstName: 'Enrico', lastName: 'Amelotti', number: 20, position: 'Attaccante', goals: 5, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
 ];
 
 const fixtures: Match[] = [
@@ -146,30 +147,79 @@ export default function App(){
   const [openMatchId, setOpenMatchId] = useState<number|null>(null);
   const [formation, setFormation] = useState<FormationData>(initialFormation);
   const [authData, setAuthData] = useState<AuthData>(initialAuthData);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [callupId, setCallupId] = useState<number | null>(null);
+  const [formationId, setFormationId] = useState<number | null>(null);
 
   useEffect(()=>{
-    try{const r=localStorage.getItem(LS_KEYS.players); if(r) setPlayers(JSON.parse(r));}catch{}
-    try{const r=localStorage.getItem(LS_KEYS.trainings); if(r) setTrainings(JSON.parse(r));}catch{}
-    try{const r=localStorage.getItem(LS_KEYS.selectedWeek); if(r) setSelectedWeek(JSON.parse(r));}catch{}
-    try{const r=localStorage.getItem(LS_KEYS.matches); if(r) setMatches(JSON.parse(r));}catch{}
-    try{const r=localStorage.getItem(LS_KEYS.callup); if(r) setCallUpData(JSON.parse(r));}catch{}
-    try{const r=localStorage.getItem(LS_KEYS.formation); if(r) setFormation(JSON.parse(r));}catch{}
-    try{const r=localStorage.getItem(LS_KEYS.auth); if(r) setAuthData(JSON.parse(r));}catch{}
+    // Load all data from database
+    Promise.all([
+      api.players.getAll(),
+      api.trainings.getAll(),
+      api.matches.getAll(),
+      api.callups.getAll(),
+      api.formations.getLatest(),
+      api.settings.get(),
+      api.auth.getUsers()
+    ]).then(([playersData, trainingsData, matchesData, callupsData, formationData, settingsData, usersData]) => {
+      if (playersData.length > 0) setPlayers(playersData);
+      if (trainingsData.length > 0) setTrainings(trainingsData);
+      if (matchesData.length > 0) setMatches(matchesData);
+      if (callupsData.length > 0 && callupsData[0]) {
+        const callupFromDb = callupsData[0];
+        // Ensure all required fields are present with defaults
+        setCallUpData({
+          opponent: callupFromDb.opponent || '',
+          date: callupFromDb.date || '',
+          meetingTime: callupFromDb.meetingTime || '',
+          kickoffTime: callupFromDb.kickoffTime || '',
+          location: callupFromDb.location || '',
+          selectedPlayers: Array.isArray(callupFromDb.selectedPlayers) ? callupFromDb.selectedPlayers : []
+        });
+        setCallupId(callupFromDb.id);
+      }
+      if (formationData) {
+        setFormation(formationData);
+        setFormationId(formationData.id);
+      }
+      if (settingsData) setSelectedWeek(settingsData.selectedWeek);
+      setAuthData(prev => ({ ...prev, users: usersData }));
+      setDataLoaded(true);
+    }).catch(err => console.error('Failed to load data:', err));
   },[]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.players, JSON.stringify(players))}catch{} },[players]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.trainings, JSON.stringify(trainings))}catch{} },[trainings]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.selectedWeek, JSON.stringify(selectedWeek))}catch{} },[selectedWeek]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.matches, JSON.stringify(matches))}catch{} },[matches]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.callup, JSON.stringify(callUpData))}catch{} },[callUpData]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.formation, JSON.stringify(formation))}catch{} },[formation]);
-  useEffect(()=>{ try{localStorage.setItem(LS_KEYS.auth, JSON.stringify(authData))}catch{} },[authData]);
+  // All data now stored in database, no localStorage needed
+  
+  // Auto-save callUpData to database when it changes (only after initial load)
+  useEffect(() => {
+    if (!dataLoaded) return; // Wait until initial data is loaded
+    
+    const saveCallup = async () => {
+      if (callupId) {
+        await api.callups.update(callupId, callUpData);
+      } else {
+        const created = await api.callups.create(callUpData);
+        setCallupId(created.id);
+      }
+    };
+    saveCallup().catch(err => console.error('Failed to save callup:', err));
+  }, [callUpData, dataLoaded]); // Removed callupId from dependencies to prevent infinite loop
+  
+  // Auto-save formation to database when it changes (only after initial load)
+  useEffect(() => {
+    if (!dataLoaded) return; // Wait until initial data is loaded
+    
+    const saveFormation = async () => {
+      if (formationId) {
+        await api.formations.update(formationId, formation);
+      } else {
+        const created = await api.formations.create(formation);
+        setFormationId(created.id);
+      }
+    };
+    saveFormation().catch(err => console.error('Failed to save formation:', err));
+  }, [formation, dataLoaded]); // Removed formationId from dependencies to prevent infinite loop
 
   useEffect(() => {
-    const hasGoalEvents = matches.some(match => 
-      match.events?.some(event => event.type === 'GOAL' && event.team === 'SEGURO')
-    );
-    if (!hasGoalEvents) return;
-    
     const goalsByPlayer: Record<number, number> = {};
     matches.forEach(match => {
       if (match.events) {
@@ -181,19 +231,84 @@ export default function App(){
         });
       }
     });
-    setPlayers(prev => prev.map(player => ({
-      ...player,
-      goals: goalsByPlayer[player.id] || 0
-    })));
+    
+    // Update players with new goal counts and save to database
+    const updatePlayerGoals = async () => {
+      const updatedPlayers = players.map(player => ({
+        ...player,
+        goals: goalsByPlayer[player.id] || 0
+      }));
+      
+      // Update each player in database
+      for (const player of updatedPlayers) {
+        if (players.find(p => p.id === player.id)?.goals !== player.goals) {
+          await api.players.update(player.id, { goals: player.goals });
+        }
+      }
+      
+      setPlayers(updatedPlayers);
+    };
+    
+    updatePlayerGoals().catch(err => console.error('Failed to update player goals:', err));
+  }, [matches]);
+
+  useEffect(() => {
+    const yellowCardsByPlayer: Record<number, number> = {};
+    const redCardsByPlayer: Record<number, number> = {};
+    matches.forEach(match => {
+      if (match.events) {
+        match.events.forEach(event => {
+          if ((event.type === 'YELLOW' || event.type === 'RED') && event.team === 'SEGURO' && (event as any).playerId) {
+            const playerId = (event as any).playerId;
+            if (event.type === 'YELLOW') {
+              yellowCardsByPlayer[playerId] = (yellowCardsByPlayer[playerId] || 0) + 1;
+            } else if (event.type === 'RED') {
+              redCardsByPlayer[playerId] = (redCardsByPlayer[playerId] || 0) + 1;
+            }
+          }
+        });
+      }
+    });
+    
+    // Update players with new card counts and save to database
+    const updatePlayerCards = async () => {
+      const updatedPlayers = players.map(player => ({
+        ...player,
+        yellowCards: yellowCardsByPlayer[player.id] || 0,
+        redCards: redCardsByPlayer[player.id] || 0
+      }));
+      
+      // Update each player in database
+      for (const player of updatedPlayers) {
+        const currentPlayer = players.find(p => p.id === player.id);
+        if (currentPlayer?.yellowCards !== player.yellowCards || currentPlayer?.redCards !== player.redCards) {
+          await api.players.update(player.id, { yellowCards: player.yellowCards, redCards: player.redCards });
+        }
+      }
+      
+      setPlayers(updatedPlayers);
+    };
+    
+    updatePlayerCards().catch(err => console.error('Failed to update player cards:', err));
   }, [matches]);
 
   const totalGoals = useMemo(()=>players.reduce((s,p)=>s+p.goals,0),[players]);
   const playedMatches = useMemo(()=>matches.filter(m=>!!m.result).length,[matches]);
 
-  const toggleAttendance = (playerId:number, sessionIndex:number)=>{
-    setTrainings(prev=>prev.map(w=>{ if(w.id!==selectedWeek) return w; const sessions=[...w.sessions]; const s={...sessions[sessionIndex]}; s.attendance={...s.attendance,[playerId]:!s.attendance[playerId]}; sessions[sessionIndex]=s; return {...w, sessions}; }));
+  const toggleAttendance = async(playerId:number, sessionIndex:number)=>{
+    const week = trainings.find(w => w.id === selectedWeek);
+    if (!week) return;
+    
+    const sessions=[...week.sessions];
+    const s={...sessions[sessionIndex]};
+    s.attendance={...s.attendance,[playerId]:!s.attendance[playerId]};
+    sessions[sessionIndex]=s;
+    const updatedWeek = {...week, sessions};
+    
+    await api.trainings.update(week.id, { sessions });
+    setTrainings(prev=>prev.map(w=>w.id===selectedWeek?updatedWeek:w));
   };
-  const addNewWeek = ()=>{ setTrainings(prev=>{ const nextId = prev.length? Math.max(...prev.map(w=>w.id))+1:1; const last = prev[prev.length-1]; const d0 = new Date(last.sessions[0].date); d0.setDate(d0.getDate()+7); const d1 = new Date(d0); d1.setDate(d0.getDate()+2); const d2 = new Date(d0); d2.setDate(d0.getDate()+4); const nw:TrainingWeek = { id: nextId, week:`Settimana ${nextId}`, sessions:[{day:'Lunedì',date:d0.toISOString().slice(0,10),attendance:{}},{day:'Mercoledì',date:d1.toISOString().slice(0,10),attendance:{}},{day:'Venerdì',date:d2.toISOString().slice(0,10),attendance:{}}]}; const arr=[...prev,nw]; setSelectedWeek(nw.id); return arr; }); };
+  const addNewWeek = async()=>{ const last = trainings[trainings.length-1]; const d0 = new Date(last.sessions[0].date); d0.setDate(d0.getDate()+7); const d1 = new Date(d0); d1.setDate(d0.getDate()+2); const d2 = new Date(d0); d2.setDate(d0.getDate()+4); const nextNum = trainings.length + 1; const newWeek = await api.trainings.create({ weekNumber: nextNum, weekLabel:`Settimana ${nextNum}`, sessions:[{day:'Lunedì',date:d0.toISOString().slice(0,10),attendance:{}},{day:'Mercoledì',date:d1.toISOString().slice(0,10),attendance:{}},{day:'Venerdì',date:d2.toISOString().slice(0,10),attendance:{}}]}); setTrainings(prev=>[...prev,newWeek]); setSelectedWeek(newWeek.id); await api.settings.update({ selectedWeek: newWeek.id }); };
   const getPlayerWeekStats = (playerId:number)=>{ 
     const player = players.find(p => p.id === playerId);
     if (player && isCallUpOnly(player)) return {present:0,total:0,percentage:0};
@@ -278,13 +393,18 @@ export default function App(){
     document.body.removeChild(link);
   };
 
-  const handleLogin = (username: string, password: string): boolean => {
-    const user = authData.users.find(u => u.username === username && u.password === password);
-    if (user) {
-      setAuthData(prev => ({ ...prev, currentUser: user }));
-      return true;
+  const handleLogin = async (username: string, password: string): Promise<boolean> => {
+    try {
+      const response = await api.auth.login(username, password);
+      if (response.success) {
+        setAuthData(prev => ({ ...prev, currentUser: response.user }));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
   const handleLogout = () => {
@@ -292,26 +412,70 @@ export default function App(){
     setActiveTab('dashboard');
   };
 
-  const addUser = (username: string, password: string, email: string) => {
-    const newUser: AuthUser = { username, password, email, role: 'user' };
-    setAuthData(prev => ({ ...prev, users: [...prev.users, newUser] }));
+  const addUser = async (username: string, password: string, email: string) => {
+    try {
+      const newUser = await api.auth.createUser(username, password, email);
+      setAuthData(prev => ({ ...prev, users: [...prev.users, newUser] }));
+    } catch (error) {
+      console.error('Add user error:', error);
+    }
   };
 
-  const deleteUser = (username: string) => {
-    setAuthData(prev => ({ ...prev, users: prev.users.filter(u => u.username !== username) }));
+  const deleteUser = async (username: string) => {
+    try {
+      await api.auth.deleteUser(username);
+      setAuthData(prev => ({ ...prev, users: prev.users.filter(u => u.username !== username) }));
+    } catch (error) {
+      console.error('Delete user error:', error);
+    }
   };
 
-  const updateUserPassword = (username: string, newPassword: string) => {
-    setAuthData(prev => ({
-      ...prev,
-      users: prev.users.map(u => u.username === username ? { ...u, password: newPassword } : u)
-    }));
+  const updateUserPassword = async (username: string, newPassword: string) => {
+    try {
+      await api.auth.updatePassword(username, newPassword);
+      // Password is not returned, so we just keep the user data as is
+    } catch (error) {
+      console.error('Update password error:', error);
+    }
   };
 
-  const resetLocalData = ()=>{ if (!confirm('Sei sicuro di voler cancellare i dati locali e tornare allo stato iniziale?')) return; try{ localStorage.removeItem(LS_KEYS.players); localStorage.removeItem(LS_KEYS.trainings); localStorage.removeItem(LS_KEYS.selectedWeek); localStorage.removeItem(LS_KEYS.matches); localStorage.removeItem(LS_KEYS.callup); localStorage.removeItem(LS_KEYS.formation);}catch{}; setPlayers(initialPlayers); setTrainings(initialTrainings); setSelectedWeek(1); setMatches(fixtures); setCallUpData(initialCallUp); setFormation(initialFormation); setOpenMatchId(null); };
+  const resetLocalData = async()=>{ 
+    if (!confirm('Sei sicuro di voler cancellare tutti i dati e tornare allo stato iniziale?')) return;
+    
+    try {
+      // Delete all data from database
+      const [playersData, trainingsData, matchesData, callupsData] = await Promise.all([
+        api.players.getAll(),
+        api.trainings.getAll(),
+        api.matches.getAll(),
+        api.callups.getAll()
+      ]);
+      
+      await Promise.all([
+        ...playersData.map((p: any) => api.players.delete(p.id)),
+        ...trainingsData.map((t: any) => api.trainings.update(t.id, { sessions: [] })),
+        ...matchesData.map((m: any) => api.matches.update(m.id, { result: null, events: [] })),
+        ...callupsData.map((c: any) => api.callups.update(c.id, { selectedPlayers: [] }))
+      ]);
+      
+      // Reset to initial state
+      setPlayers(initialPlayers);
+      setTrainings(initialTrainings);
+      setSelectedWeek(1);
+      setMatches(fixtures);
+      setCallUpData(initialCallUp);
+      setFormation(initialFormation);
+      setOpenMatchId(null);
+      
+      await api.settings.update({ selectedWeek: 1 });
+    } catch (err) {
+      console.error('Failed to reset data:', err);
+      alert('Errore durante il reset dei dati');
+    }
+  };
 
-  const togglePlayerCallUp = (playerId:number)=>{ setCallUpData(prev=>{ const already=prev.selectedPlayers.includes(playerId); if(already) return {...prev, selectedPlayers: prev.selectedPlayers.filter(id=>id!==playerId)}; if(prev.selectedPlayers.length>=20){alert('Puoi convocare massimo 20 giocatori!'); return prev;} const p=players.find(x=>x.id===playerId)!; const selected=prev.selectedPlayers.map(id=>players.find(x=>x.id===id)!); const oldCount=selected.filter(x=>x.birthYear===2005||x.birthYear===2006).length; if((p.birthYear===2005||p.birthYear===2006)&&oldCount>=4){alert('Puoi convocare massimo 4 giocatori nati nel 2005 o 2006!'); return prev;} return {...prev, selectedPlayers:[...prev.selectedPlayers, playerId]}; }); };
-  const sendWhatsApp = ()=>{ const grouped:Record<string,Player[]>= {'Portieri':[],'Terzini Destri':[],'Difensori Centrali':[],'Terzini Sinistri':[],'Centrocampisti Centrali':[],'Ali':[],'Attaccanti':[]}; const map:Record<Player["position"],string>={'Portiere':'Portieri','Terzino Destro':'Terzini Destri','Difensore Centrale':'Difensori Centrali','Terzino Sinistro':'Terzini Sinistri','Centrocampista Centrale':'Centrocampisti Centrali','Ala':'Ali','Attaccante':'Attaccanti'}; callUpData.selectedPlayers.forEach(id=>{ const p=players.find(x=>x.id===id); if(p) grouped[map[p.position]??'Attaccanti'].push(p); }); const numberEmojis=['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','1️⃣1️⃣','1️⃣2️⃣','1️⃣3️⃣','1️⃣4️⃣','1️⃣5️⃣','1️⃣6️⃣','1️⃣7️⃣','1️⃣8️⃣','1️⃣9️⃣','2️⃣0️⃣']; let c=0; let m=`⚽⚽⚽ JUNIORES PROVINCIALE – Girone B ⚽⚽⚽
+  const togglePlayerCallUp = (playerId:number)=>{ setCallUpData(prev=>{ const safePlayers = Array.isArray(prev.selectedPlayers) ? prev.selectedPlayers : []; const already=safePlayers.includes(playerId); if(already) return {...prev, selectedPlayers: safePlayers.filter(id=>id!==playerId)}; if(safePlayers.length>=20){alert('Puoi convocare massimo 20 giocatori!'); return prev;} const p=players.find(x=>x.id===playerId)!; const selected=safePlayers.map(id=>players.find(x=>x.id===id)!); const oldCount=selected.filter(x=>x.birthYear===2005||x.birthYear===2006).length; if((p.birthYear===2005||p.birthYear===2006)&&oldCount>=4){alert('Puoi convocare massimo 4 giocatori nati nel 2005 o 2006!'); return prev;} return {...prev, selectedPlayers:[...safePlayers, playerId]}; }); };
+  const sendWhatsApp = ()=>{ const safePlayers = Array.isArray(callUpData.selectedPlayers) ? callUpData.selectedPlayers : []; const grouped:Record<string,Player[]>= {'Portieri':[],'Terzini Destri':[],'Difensori Centrali':[],'Terzini Sinistri':[],'Centrocampisti Centrali':[],'Ali':[],'Attaccanti':[]}; const map:Record<Player["position"],string>={'Portiere':'Portieri','Terzino Destro':'Terzini Destri','Difensore Centrale':'Difensori Centrali','Terzino Sinistro':'Terzini Sinistri','Centrocampista Centrale':'Centrocampisti Centrali','Ala':'Ali','Attaccante':'Attaccanti'}; safePlayers.forEach(id=>{ const p=players.find(x=>x.id===id); if(p) grouped[map[p.position]??'Attaccanti'].push(p); }); const numberEmojis=['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','1️⃣1️⃣','1️⃣2️⃣','1️⃣3️⃣','1️⃣4️⃣','1️⃣5️⃣','1️⃣6️⃣','1️⃣7️⃣','1️⃣8️⃣','1️⃣9️⃣','2️⃣0️⃣']; let c=0; let m=`⚽⚽⚽ JUNIORES PROVINCIALE – Girone B ⚽⚽⚽
 `; m+=`${callUpData.opponent} – SEGURO
 
 `; m+=`📅 ${itDate(callUpData.date,{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
@@ -330,7 +494,18 @@ export default function App(){
 Kit allenamento completo
 Calzettoni blu`; window.open(`https://wa.me/?text=${encodeURIComponent(m)}`,'_blank'); };
 
-  const updateMatch = (matchId:number, updater:(m:Match)=>Match)=> setMatches(prev=>prev.map(m=>m.id===matchId?updater(m):m));
+  const updateMatch = async(matchId:number, updater:(m:Match)=>Match)=> {
+    const match = matches.find(m => m.id === matchId);
+    if (!match) return;
+    const updated = updater(match);
+    await api.matches.update(matchId, updated);
+    setMatches(prev=>prev.map(m=>m.id===matchId?updated:m));
+  };
+  
+  const changeSelectedWeek = async(weekId:number)=> {
+    setSelectedWeek(weekId);
+    await api.settings.update({ selectedWeek: weekId });
+  };
   const openMatch = (id:number)=>setOpenMatchId(id);
   const closeMatch = ()=>setOpenMatchId(null);
   const selectedMatch = matches.find(m=>m.id===openMatchId)||null;
@@ -394,21 +569,30 @@ Calzettoni blu`; window.open(`https://wa.me/?text=${encodeURIComponent(m)}`,'_bl
 function TabButton({active,onClick,children,icon}:{active:boolean; onClick:()=>void; children:React.ReactNode; icon:React.ReactNode}){return <button onClick={onClick} className={`btn ${active?'bg-blue-600 text-white':'btn-ghost'} justify-center`}>{icon}{children}</button>;}
 
 function Dashboard({totalPlayers,totalMatches,totalGoals,players}:{totalPlayers:number; totalMatches:number; totalGoals:number; players:Player[]}){
-  const topScorers=[...players].sort((a,b)=>b.goals-a.goals).slice(0,5); const nextMatchDate='19 Ott';
+  const topScorers=[...players].sort((a,b)=>b.goals-a.goals).slice(0,5); 
+  const mostBooked=[...players].sort((a,b)=>(b.yellowCards+b.redCards*2)-(a.yellowCards+a.redCards*2)).slice(0,5);
+  const nextMatchDate='19 Ott';
+  const totalYellowCards = players.reduce((sum, p) => sum + (p.yellowCards || 0), 0);
+  const totalRedCards = players.reduce((sum, p) => sum + (p.redCards || 0), 0);
+  
   return (<>
     <section className="grid sm:grid-cols-3 gap-4">
       <div className="card flex items-center justify-between"><div><p className="text-sm text-gray-500">Giocatori</p><p className="text-2xl font-bold">{totalPlayers}</p></div><Users className="text-blue-600"/></div>
       <div className="card flex items-center justify-between"><div><p className="text-sm text-gray-500">Partite Giocate</p><p className="text-2xl font-bold">{totalMatches}</p></div><Calendar className="text-blue-600"/></div>
       <div className="card flex items-center justify-between"><div><p className="text-sm text-gray-500">Gol Totali</p><p className="text-2xl font-bold">{totalGoals}</p></div><Award className="text-blue-600"/></div>
     </section>
-    <section className="card"><h2 className="text-lg font-semibold mb-3">Top Marcatori</h2><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{topScorers.map((p,idx)=>(<div key={p.id} className="flex items-center justify-between bg-gray-50 rounded p-3"><div><div className="text-sm text-gray-500">#{idx+1}</div><div className="font-semibold">{p.firstName} {p.lastName}</div><div className="text-sm text-gray-500">{p.position}</div></div><div className="text-right"><div className="text-2xl font-bold">{p.goals}</div><div className="text-xs text-gray-500">gol</div></div></div>))}</div><div className="mt-4 text-sm text-gray-600">Prossima Partita: <b>{nextMatchDate}</b></div></section>
+    <section className="grid sm:grid-cols-2 gap-4">
+      <div className="card"><h2 className="text-lg font-semibold mb-3">⚽ Top Marcatori</h2><div className="space-y-3">{topScorers.map((p,idx)=>(<div key={p.id} className="flex items-center justify-between bg-gray-50 rounded p-3"><div><div className="text-sm text-gray-500">#{idx+1}</div><div className="font-semibold">{p.firstName} {p.lastName}</div><div className="text-sm text-gray-500">{p.position}</div></div><div className="text-right"><div className="text-2xl font-bold">{p.goals}</div><div className="text-xs text-gray-500">gol</div></div></div>))}</div></div>
+      <div className="card"><h2 className="text-lg font-semibold mb-3">🟨🟥 Ammonizioni ed Espulsioni</h2><div className="mb-3 flex gap-4"><div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex-1"><div className="text-sm text-gray-600">Cartellini Gialli</div><div className="text-2xl font-bold text-yellow-600">{totalYellowCards}</div></div><div className="bg-red-50 border border-red-200 rounded-lg p-3 flex-1"><div className="text-sm text-gray-600">Cartellini Rossi</div><div className="text-2xl font-bold text-red-600">{totalRedCards}</div></div></div><div className="space-y-2">{mostBooked.filter(p=>(p.yellowCards||0)+(p.redCards||0)>0).map((p,idx)=>(<div key={p.id} className="flex items-center justify-between bg-gray-50 rounded p-2"><div className="flex items-center gap-2"><div className="text-sm text-gray-500">#{idx+1}</div><div className="text-sm font-medium">{p.firstName} {p.lastName}</div></div><div className="flex gap-2">{p.yellowCards>0 && <span className="badge bg-yellow-100 text-yellow-700">🟨 {p.yellowCards}</span>}{p.redCards>0 && <span className="badge bg-red-100 text-red-700">🟥 {p.redCards}</span>}</div></div>))}{mostBooked.every(p=>(p.yellowCards||0)+(p.redCards||0)===0) && <div className="text-center text-gray-500 py-4">Nessun cartellino registrato</div>}</div></div>
+    </section>
+    <div className="mt-4 text-sm text-gray-600">Prossima Partita: <b>{nextMatchDate}</b></div>
   </>);
 }
 
 function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendancePercent,exportMatchStatsCSV}:{players:Player[]; setPlayers:React.Dispatch<React.SetStateAction<Player[]>>; getPlayerTotalMinutes:(id:number)=>number; getPlayerAttendancePercent:(id:number)=>number; exportMatchStatsCSV:()=>void}){
   const [showAdd,setShowAdd]=useState(false); const [form,setForm]=useState<Partial<Player>>({position:'Attaccante',birthYear:2007});
-  const addPlayer=()=>{ if(!form.firstName||!form.lastName) return; const autoNumber = players.length > 0 ? Math.max(...players.map(p => p.number)) + 1 : 1; setPlayers(prev=>[...prev,{ id: prev.length? Math.max(...prev.map(p=>p.id))+1:1, firstName:form.firstName!, lastName:form.lastName!, number:autoNumber, position:(form.position??'Attaccante') as Player['position'], goals:0, presences:0, birthYear:Number(form.birthYear??2007) }]); setForm({position:'Attaccante',birthYear:2007}); setShowAdd(false); };
-  const deletePlayer=(id:number)=> setPlayers(prev=>prev.filter(p=>p.id!==id));
+  const addPlayer=async()=>{ if(!form.firstName||!form.lastName) return; const autoNumber = players.length > 0 ? Math.max(...players.map(p => p.number)) + 1 : 1; const newPlayer = await api.players.create({ firstName:form.firstName!, lastName:form.lastName!, number:autoNumber, position:(form.position??'Attaccante') as Player['position'], goals:0, assists:0, minutesPlayed:0, birthYear:Number(form.birthYear??2007) }); setPlayers(prev=>[...prev, newPlayer]); setForm({position:'Attaccante',birthYear:2007}); setShowAdd(false); };
+  const deletePlayer=async(id:number)=>{ await api.players.delete(id); setPlayers(prev=>prev.filter(p=>p.id!==id)); };
   
   const regularPlayers = players.filter(p => p.birthYear !== 2009);
   const callUpOnlyPlayers = players.filter(p => p.birthYear === 2009);
@@ -425,12 +609,12 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
     
     <div>
       <h3 className="text-md font-semibold mb-3">🔵 Giocatori Regolari</h3>
-      <div className="card overflow-auto"><table className="table w-full min-w-[780px]"><thead><tr className="text-left text-sm text-gray-500"><th>Nome</th><th>Cognome</th><th>Ruolo</th><th>Anno</th><th>Gol</th><th>Minuti</th><th>% Allen.</th><th>Azioni</th></tr></thead><tbody>{[...regularPlayers].sort((a,b)=>a.firstName.localeCompare(b.firstName)).map(p=>(<tr key={p.id} className="border-t"><td className="font-medium">{p.firstName}</td><td className="font-medium">{p.lastName}</td><td>{p.position}</td><td><span className={`badge ${p.birthYear<=2006?'bg-orange-100 text-orange-700':'bg-blue-100 text-blue-700'}`}>{p.birthYear}</span></td><td>{p.goals}</td><td>{getPlayerTotalMinutes(p.id)}</td><td>{getPlayerAttendancePercent(p.id)}%</td><td><button className="text-red-600 hover:text-red-800" onClick={()=>deletePlayer(p.id)} title="Elimina"><Trash2 size={18}/></button></td></tr>))}</tbody></table></div>
+      <div className="card overflow-auto"><table className="table w-full min-w-[900px]"><thead><tr className="text-left text-sm text-gray-500"><th>Nome</th><th>Cognome</th><th>Ruolo</th><th>Anno</th><th>Gol</th><th>Minuti</th><th>🟨</th><th>🟥</th><th>% Allen.</th><th>Azioni</th></tr></thead><tbody>{[...regularPlayers].sort((a,b)=>a.firstName.localeCompare(b.firstName)).map(p=>(<tr key={p.id} className="border-t"><td className="font-medium">{p.firstName}</td><td className="font-medium">{p.lastName}</td><td>{p.position}</td><td><span className={`badge ${p.birthYear<=2006?'bg-orange-100 text-orange-700':'bg-blue-100 text-blue-700'}`}>{p.birthYear}</span></td><td>{p.goals}</td><td>{getPlayerTotalMinutes(p.id)}</td><td className="text-center">{p.yellowCards||0}</td><td className="text-center">{p.redCards||0}</td><td>{getPlayerAttendancePercent(p.id)}%</td><td><button className="text-red-600 hover:text-red-800" onClick={()=>deletePlayer(p.id)} title="Elimina"><Trash2 size={18}/></button></td></tr>))}</tbody></table></div>
     </div>
     
     <div>
       <h3 className="text-md font-semibold mb-3">🟣 Giocatori Convocabili (2009)</h3>
-      <div className="card overflow-auto"><table className="table w-full min-w-[740px]"><thead><tr className="text-left text-sm text-gray-500"><th>Nome</th><th>Cognome</th><th>Ruolo</th><th>Anno</th><th>Gol</th><th>Minuti</th><th>Azioni</th></tr></thead><tbody>{callUpOnlyPlayers.length===0?(<tr><td colSpan={7} className="text-center text-gray-500 py-4">Nessun giocatore convocabile</td></tr>):([...callUpOnlyPlayers].sort((a,b)=>a.firstName.localeCompare(b.firstName)).map(p=>(<tr key={p.id} className="border-t"><td className="font-medium">{p.firstName}</td><td className="font-medium">{p.lastName}</td><td>{p.position}</td><td><span className="badge bg-purple-100 text-purple-700">{p.birthYear}</span></td><td>{p.goals}</td><td>{getPlayerTotalMinutes(p.id)}</td><td><button className="text-red-600 hover:text-red-800" onClick={()=>deletePlayer(p.id)} title="Elimina"><Trash2 size={18}/></button></td></tr>)))}</tbody></table></div>
+      <div className="card overflow-auto"><table className="table w-full min-w-[860px]"><thead><tr className="text-left text-sm text-gray-500"><th>Nome</th><th>Cognome</th><th>Ruolo</th><th>Anno</th><th>Gol</th><th>Minuti</th><th>🟨</th><th>🟥</th><th>Azioni</th></tr></thead><tbody>{callUpOnlyPlayers.length===0?(<tr><td colSpan={9} className="text-center text-gray-500 py-4">Nessun giocatore convocabile</td></tr>):([...callUpOnlyPlayers].sort((a,b)=>a.firstName.localeCompare(b.firstName)).map(p=>(<tr key={p.id} className="border-t"><td className="font-medium">{p.firstName}</td><td className="font-medium">{p.lastName}</td><td>{p.position}</td><td><span className="badge bg-purple-100 text-purple-700">{p.birthYear}</span></td><td>{p.goals}</td><td>{getPlayerTotalMinutes(p.id)}</td><td className="text-center">{p.yellowCards||0}</td><td className="text-center">{p.redCards||0}</td><td><button className="text-red-600 hover:text-red-800" onClick={()=>deletePlayer(p.id)} title="Elimina"><Trash2 size={18}/></button></td></tr>)))}</tbody></table></div>
     </div>
   </section>);
 }
@@ -497,7 +681,9 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
 }
 
 function CallUpTab({ players, matches, callUpData, setCallUpData, togglePlayerCallUp, sendWhatsApp, getPlayerWeekStats, formation, setFormation }:{ players:Player[]; matches:Match[]; callUpData:CallUpData; setCallUpData:React.Dispatch<React.SetStateAction<CallUpData>>; togglePlayerCallUp:(id:number)=>void; sendWhatsApp:()=>void; getPlayerWeekStats:(playerId:number)=>{present:number; total:number; percentage:number}; formation:FormationData; setFormation:React.Dispatch<React.SetStateAction<FormationData>> }){
-  const oldPlayers = callUpData.selectedPlayers.map(id=>players.find(p=>p.id===id)!).filter(p=>p && (p.birthYear===2005||p.birthYear===2006));
+  // Safety check: ensure selectedPlayers is always an array
+  const selectedPlayers = Array.isArray(callUpData?.selectedPlayers) ? callUpData.selectedPlayers : [];
+  const oldPlayers = selectedPlayers.map(id=>players.find(p=>p.id===id)!).filter(p=>p && (p.birthYear===2005||p.birthYear===2006));
   
   const handleMatchChange = (matchId: string) => {
     if (!matchId) {
@@ -549,15 +735,15 @@ function CallUpTab({ players, matches, callUpData, setCallUpData, togglePlayerCa
   return (<section className="space-y-4">
     <div className="card grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
       <div><label className="text-sm text-gray-600">Partita</label><select className="w-full px-3 py-2 border rounded-lg" value={currentSelection?.id || ''} onChange={e=>handleMatchChange(e.target.value)}><option value="">-- Seleziona Partita --</option>{matchOptions.map(opt=><option key={opt.id} value={opt.id}>{opt.label}</option>)}</select></div>
-      <div><label className="text-sm text-gray-600">Data Partita</label><input type="date" className="w-full px-3 py-2 border rounded-lg" value={callUpData.date} onChange={e=>setCallUpData(v=>({...v,date:e.target.value}))}/></div>
-      <div><label className="text-sm text-gray-600">Orario Ritrovo</label><input type="time" className="w-full px-3 py-2 border rounded-lg" value={callUpData.meetingTime} onChange={e=>setCallUpData(v=>({...v,meetingTime:e.target.value}))}/></div>
-      <div><label className="text-sm text-gray-600">Calcio d'Inizio</label><input type="time" className="w-full px-3 py-2 border rounded-lg" value={callUpData.kickoffTime} onChange={e=>setCallUpData(v=>({...v,kickoffTime:e.target.value}))}/></div>
-      <div className="lg:col-span-2"><label className="text-sm text-gray-600">Indirizzo Campo</label><input className="w-full px-3 py-2 border rounded-lg" value={callUpData.location} onChange={e=>setCallUpData(v=>({...v,location:e.target.value}))}/></div>
-      <div className="flex items-center gap-3"><span className="badge bg-blue-100 text-blue-700">{callUpData.selectedPlayers.length}/20 Selezionati</span><span className="badge bg-orange-100 text-orange-700">{oldPlayers.length}/4 2005-2006</span></div>
+      <div><label className="text-sm text-gray-600">Data Partita</label><input type="date" className="w-full px-3 py-2 border rounded-lg" value={callUpData?.date || ''} onChange={e=>setCallUpData(v=>({...v,date:e.target.value}))}/></div>
+      <div><label className="text-sm text-gray-600">Orario Ritrovo</label><input type="time" className="w-full px-3 py-2 border rounded-lg" value={callUpData?.meetingTime || ''} onChange={e=>setCallUpData(v=>({...v,meetingTime:e.target.value}))}/></div>
+      <div><label className="text-sm text-gray-600">Calcio d'Inizio</label><input type="time" className="w-full px-3 py-2 border rounded-lg" value={callUpData?.kickoffTime || ''} onChange={e=>setCallUpData(v=>({...v,kickoffTime:e.target.value}))}/></div>
+      <div className="lg:col-span-2"><label className="text-sm text-gray-600">Indirizzo Campo</label><input className="w-full px-3 py-2 border rounded-lg" value={callUpData?.location || ''} onChange={e=>setCallUpData(v=>({...v,location:e.target.value}))}/></div>
+      <div className="flex items-center gap-3"><span className="badge bg-blue-100 text-blue-700">{selectedPlayers.length}/20 Selezionati</span><span className="badge bg-orange-100 text-orange-700">{oldPlayers.length}/4 2005-2006</span></div>
       <div className="lg:col-span-3"><button className="btn btn-primary" onClick={sendWhatsApp}><Send size={18}/>Invia su WhatsApp</button></div>
     </div>
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-      {players.map(p=>{ const isSel=callUpData.selectedPlayers.includes(p.id); const st=getPlayerWeekStats(p.id); return (
+      {players.map(p=>{ const isSel=selectedPlayers.includes(p.id); const st=getPlayerWeekStats(p.id); return (
         <button key={p.id} onClick={()=>togglePlayerCallUp(p.id)} className={`p-4 rounded-lg border-2 text-left transition ${isSel?'bg-blue-50 border-blue-500':'bg-gray-50 border-gray-300 hover:bg-gray-100'}`}>
           <div className="flex items-center justify-between"><span className="text-sm text-gray-500">N° {p.number}</span><span className={`badge ${p.birthYear<=2006?'bg-orange-100 text-orange-700':'bg-gray-100 text-gray-700'}`}>{p.birthYear}</span></div>
           <div className="font-semibold">{p.firstName} {p.lastName}</div>
@@ -858,15 +1044,15 @@ function FormationBuilder({players, formation, setFormation}:{players:Player[]; 
   );
 }
 
-function LoginPage({ onLogin }: { onLogin: (username: string, password: string) => boolean }) {
+function LoginPage({ onLogin }: { onLogin: (username: string, password: string) => Promise<boolean> }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = onLogin(username, password);
+    const success = await onLogin(username, password);
     if (!success) {
       setError('Credenziali non valide');
     }
