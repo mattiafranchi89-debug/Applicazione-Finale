@@ -220,6 +220,8 @@ export default function App(){
   }, [formation, dataLoaded]); // Removed formationId from dependencies to prevent infinite loop
 
   useEffect(() => {
+    if (players.length === 0) return;
+    
     const goalsByPlayer: Record<number, number> = {};
     matches.forEach(match => {
       if (match.events) {
@@ -250,9 +252,11 @@ export default function App(){
     };
     
     updatePlayerGoals().catch(err => console.error('Failed to update player goals:', err));
-  }, [matches]);
+  }, [matches, players.length]);
 
   useEffect(() => {
+    if (players.length === 0) return;
+    
     const yellowCardsByPlayer: Record<number, number> = {};
     const redCardsByPlayer: Record<number, number> = {};
     matches.forEach(match => {
@@ -290,7 +294,7 @@ export default function App(){
     };
     
     updatePlayerCards().catch(err => console.error('Failed to update player cards:', err));
-  }, [matches]);
+  }, [matches, players.length]);
 
   const totalGoals = useMemo(()=>players.reduce((s,p)=>s+p.goals,0),[players]);
   const playedMatches = useMemo(()=>matches.filter(m=>!!m.result).length,[matches]);

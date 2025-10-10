@@ -80,11 +80,25 @@ app.post('/api/players', async (req, res) => {
 });
 
 app.put('/api/players/:id', async (req, res) => {
-  const [updated] = await db.update(players)
-    .set(req.body)
-    .where(eq(players.id, parseInt(req.params.id)))
-    .returning();
-  res.json(updated);
+  try {
+    if (!req.body || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ error: 'No data provided' });
+    }
+    
+    const [updated] = await db.update(players)
+      .set(req.body)
+      .where(eq(players.id, parseInt(req.params.id)))
+      .returning();
+    
+    if (!updated) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating player:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 app.delete('/api/players/:id', async (req, res) => {
