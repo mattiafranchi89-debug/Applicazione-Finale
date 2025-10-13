@@ -11,7 +11,8 @@ async function resetAdmin() {
 
     const newPassword = process.argv[2] || process.env.ADMIN_RESET_PASSWORD || DEFAULT_ADMIN_PASSWORD;
     const adminEmail = process.argv[3] || process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL;
-    const adminUsername = process.env.ADMIN_USERNAME || DEFAULT_ADMIN_USERNAME;
+    const adminUsername =
+      process.argv[4] || process.env.ADMIN_USERNAME || DEFAULT_ADMIN_USERNAME;
 
     const result = await ensureAdminUser({
       username: adminUsername,

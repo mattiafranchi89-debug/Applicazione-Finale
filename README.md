@@ -31,7 +31,7 @@ npm run admin:reset
 Di default verrà ripristinata la password `admin2024` sull'utente `admin`. È possibile passare una nuova password ed un indirizzo email personalizzato:
 
 ```bash
-npm run admin:reset -- <nuova-password> <email>
+npm run admin:reset -- <nuova-password> <email> [username]
 ```
 
 In alternativa è possibile impostare le variabili d'ambiente `ADMIN_RESET_PASSWORD`, `ADMIN_EMAIL` e `ADMIN_USERNAME` prima di eseguire il comando. Impostando `ADMIN_PASSWORD` (o `ADMIN_FORCE_RESET=true`) il server aggiornerà automaticamente la password all'avvio.
