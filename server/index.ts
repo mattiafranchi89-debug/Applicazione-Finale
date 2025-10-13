@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { db } from './db.js';
 import { users, players, trainings, matches, callups, formations, appSettings } from '../shared/schema.js';
+import { ensureAdminUser } from './admin.js';
 import { eq, desc, sql } from 'drizzle-orm';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -13,6 +14,22 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 const SALT_ROUNDS = 10;
+
+ensureAdminUser({
+  forceReset: process.env.ADMIN_FORCE_RESET === 'true' || Boolean(process.env.ADMIN_PASSWORD),
+})
+  .then((result) => {
+    if (result.action === 'created') {
+      console.log(`👤 Admin user created (${result.username}).`);
+    } else if (result.action === 'updated') {
+      console.log(`👤 Admin user updated (${result.username}) — ${result.updatedFields.join(', ')}.`);
+    } else {
+      console.log(`👤 Admin user already configured (${result.username}).`);
+    }
+  })
+  .catch((error) => {
+    console.error('❌ Unable to ensure admin user exists:', error);
+  });
 
 app.use(cors());
 app.use(express.json());

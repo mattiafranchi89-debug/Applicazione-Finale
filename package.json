@@ -12,7 +12,8 @@
     "db:push": "drizzle-kit push",
     "db:seed": "node --import tsx server/seed.ts",
     "db:seed-data": "node --import tsx server/seed-data.ts",
-    "admin:reset": "node --import tsx server/reset-admin.ts"
+    "admin:reset": "node --import tsx server/reset-admin.ts",
+    "test:ensure-admin": "tsx tests/ensure-admin.integration.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",

@@ -1,42 +1,35 @@
-import { db } from './db';
-import { users } from '../shared/schema';
-import { eq } from 'drizzle-orm';
-import bcrypt from 'bcrypt';
-
-const SALT_ROUNDS = 10;
+import {
+  DEFAULT_ADMIN_EMAIL,
+  DEFAULT_ADMIN_PASSWORD,
+  DEFAULT_ADMIN_USERNAME,
+  ensureAdminUser,
+} from './admin.js';
 
 async function resetAdmin() {
   try {
     console.log('🔐 Resetting admin credentials...');
 
-    const newPassword = process.argv[2] || process.env.ADMIN_RESET_PASSWORD || 'admin2024';
-    const adminEmail = process.argv[3] || process.env.ADMIN_EMAIL || 'mattia.franchi89@gmail.com';
+    const newPassword = process.argv[2] || process.env.ADMIN_RESET_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+    const adminEmail = process.argv[3] || process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL;
+    const adminUsername =
+      process.argv[4] || process.env.ADMIN_USERNAME || DEFAULT_ADMIN_USERNAME;
 
-    const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    const result = await ensureAdminUser({
+      username: adminUsername,
+      password: newPassword,
+      email: adminEmail,
+      forceReset: true,
+    });
 
-    const [existingAdmin] = await db
-      .select()
-      .from(users)
-      .where(eq(users.username, 'admin'))
-      .limit(1);
-
-    if (existingAdmin) {
-      await db
-        .update(users)
-        .set({ password: hashedPassword, role: 'admin', email: adminEmail })
-        .where(eq(users.username, 'admin'));
-      console.log('✅ Admin password reset successfully.');
-    } else {
-      await db.insert(users).values({
-        username: 'admin',
-        password: hashedPassword,
-        email: adminEmail,
-        role: 'admin'
-      });
+    if (result.action === 'created') {
       console.log('✅ Admin user recreated successfully.');
+    } else if (result.action === 'updated') {
+      console.log(`✅ Admin user updated (${result.updatedFields.join(', ')}).`);
+    } else {
+      console.log('ℹ️ Admin user already up to date.');
     }
 
-    console.log('   Username: admin');
+    console.log(`   Username: ${adminUsername}`);
     console.log(`   Password: ${newPassword}`);
     console.log(`   Email: ${adminEmail}`);
 
