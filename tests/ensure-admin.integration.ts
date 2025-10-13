@@ -48,18 +48,34 @@ async function runTests() {
   assert(adminAfterPasswordReset);
   assert(await bcrypt.compare('newSecret', adminAfterPasswordReset.password), 'Password should be reset');
 
-  const emailUpdateResult = await ensureAdminUser({
+  const noForcePasswordUpdate = await ensureAdminUser({
     username: 'admin',
-    password: 'newSecret',
-    email: 'coach@example.com',
+    password: 'rotatedAgain',
+    email: 'admin@example.com',
   }, store);
 
-  assert.equal(emailUpdateResult.action, 'updated');
-  assert(emailUpdateResult.updatedFields?.includes('email'), 'Email should be marked as updated');
+  assert.equal(noForcePasswordUpdate.action, 'updated');
+  assert.deepEqual(noForcePasswordUpdate.updatedFields, ['password']);
 
-  const adminAfterEmailUpdate = await store.findByUsername('admin');
-  assert(adminAfterEmailUpdate);
-  assert.equal(adminAfterEmailUpdate.email, 'coach@example.com');
+  const adminAfterPasswordRotate = await store.findByUsername('admin');
+  assert(adminAfterPasswordRotate);
+  assert(
+    await bcrypt.compare('rotatedAgain', adminAfterPasswordRotate.password),
+    'Password rotation without force flag should be applied',
+  );
+
+  const trimmedInputResult = await ensureAdminUser({
+    username: '  admin  ',
+    password: 'rotatedAgain',
+    email: 'coach@example.com   ',
+  }, store);
+
+  assert.equal(trimmedInputResult.action, 'updated');
+  assert(trimmedInputResult.updatedFields?.includes('email'));
+
+  const adminAfterTrimmedInput = await store.findByUsername('admin');
+  assert(adminAfterTrimmedInput);
+  assert.equal(adminAfterTrimmedInput.email, 'coach@example.com');
 
   const existingUser: MemoryAdminUser = {
     id: 99,
