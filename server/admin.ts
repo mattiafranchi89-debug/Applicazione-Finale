@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import { eq } from 'drizzle-orm';
 
 import { db } from './db';
-import { InsertUser, users } from '../shared/schema';
+import { InsertUser, User, users } from '../shared/schema';
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10);
 
@@ -22,21 +22,83 @@ type EnsureAdminResult =
   | { action: 'updated'; username: string; email: string; updatedFields: (keyof InsertUser)[] }
   | { action: 'unchanged'; username: string; email: string };
 
-export async function ensureAdminUser(options: EnsureAdminOptions = {}): Promise<EnsureAdminResult> {
+export type AdminUserStore = {
+  findByUsername: (username: string) => Promise<User | undefined>;
+  create: (user: InsertUser) => Promise<void>;
+  updateById: (id: number, updates: Partial<InsertUser>) => Promise<void>;
+};
+
+const defaultAdminStore: AdminUserStore = {
+  async findByUsername(username: string) {
+    const [existingAdmin] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username))
+      .limit(1);
+
+    return existingAdmin;
+  },
+  async create(user: InsertUser) {
+    await db.insert(users).values(user);
+  },
+  async updateById(id: number, updates: Partial<InsertUser>) {
+    await db.update(users).set(updates).where(eq(users.id, id));
+  },
+};
+
+export type MemoryAdminUser = User & { password: string };
+
+export type MemoryAdminStore = AdminUserStore & {
+  dump: () => MemoryAdminUser[];
+};
+
+export function createMemoryAdminStore(initialUsers: MemoryAdminUser[] = []): MemoryAdminStore {
+  let sequence = initialUsers.reduce((max, user) => Math.max(max, user.id ?? 0), 0);
+  const usersData = initialUsers.map((user) => ({
+    ...user,
+    createdAt: user.createdAt ?? new Date(),
+  }));
+
+  return {
+    async findByUsername(username: string) {
+      return usersData.find((user) => user.username === username);
+    },
+    async create(user: InsertUser) {
+      const id = ++sequence;
+      usersData.push({
+        id,
+        username: user.username!,
+        password: user.password!,
+        email: user.email!,
+        role: (user.role as User['role']) ?? 'user',
+        createdAt: user.createdAt ?? new Date(),
+      });
+    },
+    async updateById(id: number, updates: Partial<InsertUser>) {
+      const target = usersData.find((user) => user.id === id);
+      if (!target) return;
+      Object.assign(target, updates);
+    },
+    dump() {
+      return usersData.map((user) => ({ ...user }));
+    },
+  };
+}
+
+export async function ensureAdminUser(
+  options: EnsureAdminOptions = {},
+  store: AdminUserStore = defaultAdminStore,
+): Promise<EnsureAdminResult> {
   const username = (options.username || DEFAULT_ADMIN_USERNAME).trim();
   const email = (options.email || DEFAULT_ADMIN_EMAIL).trim();
   const password = options.password || DEFAULT_ADMIN_PASSWORD;
   const forceReset = options.forceReset ?? false;
 
-  const [existingAdmin] = await db
-    .select()
-    .from(users)
-    .where(eq(users.username, username))
-    .limit(1);
+  const existingAdmin = await store.findByUsername(username);
 
   if (!existingAdmin) {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-    await db.insert(users).values({ username, password: hashedPassword, email, role: 'admin' });
+    await store.create({ username, password: hashedPassword, email, role: 'admin' });
     return { action: 'created', username, email };
   }
 
@@ -63,7 +125,7 @@ export async function ensureAdminUser(options: EnsureAdminOptions = {}): Promise
     return { action: 'unchanged', username, email };
   }
 
-  await db.update(users).set(updatePayload).where(eq(users.id, existingAdmin.id));
+  await store.updateById(existingAdmin.id!, updatePayload);
 
   return { action: 'updated', username, email, updatedFields };
 }
