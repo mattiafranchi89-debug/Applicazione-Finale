@@ -9,27 +9,7 @@ import type {
   TrainingWeek,
 } from './types';
 
-export const INITIAL_PLAYERS: Player[] = [
-  { id: 1, firstName: 'Gabriele', lastName: 'Russo', number: 1, position: 'Portiere', goals: 0, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 2, firstName: 'Andrea', lastName: 'Capasso', number: 12, position: 'Portiere', goals: 0, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 3, firstName: 'Gabriele', lastName: 'Lucchini', number: 2, position: 'Terzino Destro', goals: 1, presences: 12, birthYear: 2006, yellowCards: 0, redCards: 0 },
-  { id: 4, firstName: 'Davide', lastName: 'Toscano', number: 3, position: 'Terzino Destro', goals: 0, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 5, firstName: 'Giovanni', lastName: 'Montalto', number: 4, position: 'Difensore Centrale', goals: 2, presences: 11, birthYear: 2006, yellowCards: 0, redCards: 0 },
-  { id: 6, firstName: 'Massimo', lastName: 'Calvone', number: 5, position: 'Difensore Centrale', goals: 1, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 7, firstName: 'Elia', lastName: 'Restivo', number: 6, position: 'Terzino Sinistro', goals: 0, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 8, firstName: 'Lorenzo', lastName: 'Dopinto', number: 8, position: 'Centrocampista Centrale', goals: 3, presences: 11, birthYear: 2006, yellowCards: 0, redCards: 0 },
-  { id: 9, firstName: 'Filippo', lastName: 'Lesino', number: 7, position: 'Centrocampista Centrale', goals: 2, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 10, firstName: 'Riccardo', lastName: 'Brocca', number: 10, position: 'Centrocampista Centrale', goals: 4, presences: 11, birthYear: 2005, yellowCards: 0, redCards: 0 },
-  { id: 11, firstName: 'Filippo', lastName: 'Cogliati', number: 11, position: 'Ala', goals: 5, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 12, firstName: 'Abdullah', lastName: 'Tahsif', number: 14, position: 'Ala', goals: 3, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 13, firstName: 'Afif', lastName: 'Adam', number: 15, position: 'Ala', goals: 2, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 14, firstName: 'Cristian', lastName: "D'Agostino", number: 16, position: 'Ala', goals: 4, presences: 12, birthYear: 2006, yellowCards: 0, redCards: 0 },
-  { id: 15, firstName: 'Gabriele', lastName: 'Mazzei', number: 17, position: 'Ala', goals: 3, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 16, firstName: 'Andrei', lastName: 'Dorosan', number: 9, position: 'Attaccante', goals: 8, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 17, firstName: 'Gaetano', lastName: 'Cristian', number: 18, position: 'Attaccante', goals: 6, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 18, firstName: 'Domenico', lastName: 'Romito', number: 19, position: 'Attaccante', goals: 7, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 19, firstName: 'Enrico', lastName: 'Amelotti', number: 20, position: 'Attaccante', goals: 5, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
-];
+export const INITIAL_PLAYERS: Player[] = [];
 
 export const INITIAL_MATCHES: Match[] = [
   { id: 1, round: 1, date: '2025-09-20', time: '18:00', home: 'Vighignolo', away: 'Seguro', address: 'Via Pace S.N.C.', city: 'Settimo Milanese Fr. Vighignolo', result: '4-3', events: [] },

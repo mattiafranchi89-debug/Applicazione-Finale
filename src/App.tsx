@@ -132,81 +132,13 @@ export default function App(){
   }, [formation, dataLoaded]); // Removed formationId from dependencies to prevent infinite loop
 
   useEffect(() => {
-    if (players.length === 0) return;
-    
-    const goalsByPlayer: Record<number, number> = {};
-    matches.forEach(match => {
-      if (match.events) {
-        match.events.forEach(event => {
-          if (event.type === 'GOAL' && event.team === 'SEGURO' && (event as any).playerId) {
-            const playerId = (event as any).playerId;
-            goalsByPlayer[playerId] = (goalsByPlayer[playerId] || 0) + 1;
-          }
-        });
-      }
-    });
-    
-    // Update players with new goal counts and persist them
-    const updatePlayerGoals = async () => {
-      const updatedPlayers = players.map(player => ({
-        ...player,
-        goals: goalsByPlayer[player.id] || 0
-      }));
-      
-        // Update each player in storage
-      for (const player of updatedPlayers) {
-        if (players.find(p => p.id === player.id)?.goals !== player.goals) {
-          await api.players.update(player.id, { goals: player.goals });
-        }
-      }
-      
-      setPlayers(updatedPlayers);
-    };
-    
-    updatePlayerGoals().catch(err => console.error('Failed to update player goals:', err));
-  }, [matches, players.length]);
+    if (!dataLoaded) return;
 
-  useEffect(() => {
-    if (players.length === 0) return;
-    
-    const yellowCardsByPlayer: Record<number, number> = {};
-    const redCardsByPlayer: Record<number, number> = {};
-    matches.forEach(match => {
-      if (match.events) {
-        match.events.forEach(event => {
-          if ((event.type === 'YELLOW' || event.type === 'RED') && event.team === 'SEGURO' && (event as any).playerId) {
-            const playerId = (event as any).playerId;
-            if (event.type === 'YELLOW') {
-              yellowCardsByPlayer[playerId] = (yellowCardsByPlayer[playerId] || 0) + 1;
-            } else if (event.type === 'RED') {
-              redCardsByPlayer[playerId] = (redCardsByPlayer[playerId] || 0) + 1;
-            }
-          }
-        });
-      }
-    });
-    
-    // Update players with new card counts and persist them
-    const updatePlayerCards = async () => {
-      const updatedPlayers = players.map(player => ({
-        ...player,
-        yellowCards: yellowCardsByPlayer[player.id] || 0,
-        redCards: redCardsByPlayer[player.id] || 0
-      }));
-      
-        // Update each player in storage
-      for (const player of updatedPlayers) {
-        const currentPlayer = players.find(p => p.id === player.id);
-        if (currentPlayer?.yellowCards !== player.yellowCards || currentPlayer?.redCards !== player.redCards) {
-          await api.players.update(player.id, { yellowCards: player.yellowCards, redCards: player.redCards });
-        }
-      }
-      
-      setPlayers(updatedPlayers);
-    };
-    
-    updatePlayerCards().catch(err => console.error('Failed to update player cards:', err));
-  }, [matches, players.length]);
+    api.players
+      .getAll()
+      .then((synced) => setPlayers(synced))
+      .catch((err) => console.error('Failed to synchronise player stats:', err));
+  }, [matches, dataLoaded]);
 
   const totalGoals = useMemo(()=>players.reduce((s,p)=>s+p.goals,0),[players]);
   const playedMatches = useMemo(()=>matches.filter(m=>!!m.result).length,[matches]);
@@ -339,7 +271,17 @@ export default function App(){
     try {
       const response = await api.auth.login(username, password);
       if (response.success && response.user) {
-        setAuthData(prev => ({ ...prev, currentUser: { ...response.user } }));
+        let usersList = authData.users;
+        try {
+          const fetchedUsers = await api.auth.getUsers();
+          if (Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
+            usersList = fetchedUsers;
+          }
+        } catch (fetchError) {
+          console.warn('Unable to refresh users after login:', fetchError);
+        }
+
+        setAuthData(prev => ({ ...prev, currentUser: { ...response.user }, users: usersList }));
         return true;
       }
       return false;
@@ -441,9 +383,14 @@ Calzettoni blu`; window.open(`https://wa.me/?text=${encodeURIComponent(m)}`,'_bl
   const updateMatch = async(matchId:number, updater:(m:Match)=>Match)=> {
     const match = matches.find(m => m.id === matchId);
     if (!match) return;
-    const updated = updater(match);
-    await api.matches.update(matchId, updated);
-    setMatches(prev=>prev.map(m=>m.id===matchId?updated:m));
+    const updatedDraft = updater(match);
+    try {
+      const { match: savedMatch, players: syncedPlayers } = await api.matches.update(matchId, updatedDraft);
+      setMatches(prev=>prev.map(m=>m.id===matchId?savedMatch:m));
+      setPlayers(syncedPlayers);
+    } catch (error) {
+      console.error('Failed to save match', error);
+    }
   };
   
   const changeSelectedWeek = async(weekId:number)=> {
@@ -1066,6 +1013,9 @@ function LoginPage({ onLogin }: { onLogin: (username: string, password: string) 
     setError('');
     setSuccess('');
 
+    const trimmedUsername = username.trim();
+    const trimmedEmail = email.trim();
+
     if (password !== confirmPassword) {
       setError('Le password non coincidono');
       return;
@@ -1077,18 +1027,7 @@ function LoginPage({ onLogin }: { onLogin: (username: string, password: string) 
     }
 
     try {
-      const response = await fetch('/api/auth/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, email })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Errore sconosciuto' }));
-        setError(errorData.error || 'Errore durante la registrazione. Username potrebbe essere già in uso.');
-        return;
-      }
-
+      await api.auth.createUser(trimmedUsername, password, trimmedEmail);
       setSuccess('Registrazione completata! Ora puoi accedere.');
       setPassword('');
       setConfirmPassword('');
@@ -1099,7 +1038,11 @@ function LoginPage({ onLogin }: { onLogin: (username: string, password: string) 
         setEmail('');
       }, 2000);
     } catch (err) {
-      setError('Errore di connessione. Riprova più tardi.');
+      if (err instanceof Error) {
+        setError(err.message || 'Errore durante la registrazione.');
+      } else {
+        setError('Errore durante la registrazione. Username potrebbe essere già in uso.');
+      }
     }
   };
 

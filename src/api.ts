@@ -93,6 +93,51 @@ const ensureMatches = (): Match[] => {
   return seeded;
 };
 
+const computePlayerStatsFromMatches = (players: Player[], matches: Match[]): Player[] => {
+  if (players.length === 0) return players.map((player) => ({ ...player }));
+
+  const goalsByPlayer = new Map<number, number>();
+  const yellowsByPlayer = new Map<number, number>();
+  const redsByPlayer = new Map<number, number>();
+
+  matches.forEach((match) => {
+    if (!Array.isArray(match.events)) return;
+
+    match.events.forEach((event) => {
+      if (!event || event.team !== 'SEGURO') return;
+      const playerId = (event as any).playerId as number | undefined;
+      if (!playerId) return;
+
+      if (event.type === 'GOAL') {
+        goalsByPlayer.set(playerId, (goalsByPlayer.get(playerId) ?? 0) + 1);
+      } else if (event.type === 'YELLOW') {
+        yellowsByPlayer.set(playerId, (yellowsByPlayer.get(playerId) ?? 0) + 1);
+      } else if (event.type === 'RED') {
+        redsByPlayer.set(playerId, (redsByPlayer.get(playerId) ?? 0) + 1);
+      }
+    });
+  });
+
+  return players.map((player) => ({
+    ...player,
+    goals: goalsByPlayer.get(player.id) ?? 0,
+    yellowCards: yellowsByPlayer.get(player.id) ?? 0,
+    redCards: redsByPlayer.get(player.id) ?? 0,
+  }));
+};
+
+const syncPlayerStats = (): Player[] => {
+  const players = ensurePlayers();
+  if (players.length === 0) {
+    return players;
+  }
+
+  const matches = ensureMatches();
+  const syncedPlayers = computePlayerStatsFromMatches(players, matches);
+  write(LS_KEYS.players, syncedPlayers);
+  return syncedPlayers;
+};
+
 const ensureCallups = (): CallUpRecord[] => {
   const stored = read<CallUpRecord[]>(LS_KEYS.callups);
   if (stored && Array.isArray(stored) && stored.length > 0) return stored;
@@ -171,8 +216,10 @@ const resetAll = () => {
   write(LS_KEYS.settings, settings);
   write(LS_KEYS.auth, users);
 
+  const syncedPlayers = syncPlayerStats();
+
   return {
-    players: clone(players),
+    players: clone(syncedPlayers),
     trainings: clone(trainings),
     matches: clone(matches),
     callups: clone(callups),
@@ -185,7 +232,7 @@ const resetAll = () => {
 
 export const api = {
   players: {
-    getAll: async (): Promise<Player[]> => clone(ensurePlayers()),
+    getAll: async (): Promise<Player[]> => clone(syncPlayerStats()),
     create: async (player: Partial<Player>): Promise<Player> => {
       const players = ensurePlayers();
       const newPlayer: Player = {
@@ -248,7 +295,7 @@ export const api = {
   },
   matches: {
     getAll: async (): Promise<Match[]> => clone(ensureMatches()),
-    create: async (match: Partial<Match>): Promise<Match> => {
+    create: async (match: Partial<Match>): Promise<{ match: Match; players: Player[] }> => {
       const matches = ensureMatches();
       const newMatch: Match = {
         id: nextId(matches),
@@ -265,9 +312,13 @@ export const api = {
       };
       matches.push(newMatch);
       write(LS_KEYS.matches, matches);
-      return clone(newMatch);
+      const updatedPlayers = syncPlayerStats();
+      return {
+        match: clone(newMatch),
+        players: clone(updatedPlayers),
+      };
     },
-    update: async (id: number, match: Partial<Match>): Promise<Match> => {
+    update: async (id: number, match: Partial<Match>): Promise<{ match: Match; players: Player[] }> => {
       const matches = ensureMatches();
       const index = matches.findIndex((m) => m.id === id);
       if (index === -1) throw new Error('Match not found');
@@ -279,7 +330,11 @@ export const api = {
       };
       matches[index] = updated;
       write(LS_KEYS.matches, matches);
-      return clone(updated);
+      const updatedPlayers = syncPlayerStats();
+      return {
+        match: clone(updated),
+        players: clone(updatedPlayers),
+      };
     },
   },
   callups: {
@@ -367,7 +422,7 @@ export const api = {
       const users = ensureAuthUsers();
       const normalized = username.trim().toLowerCase();
       if (users.some((u) => u.username.trim().toLowerCase() === normalized)) {
-        throw new Error('User already exists');
+        throw new Error('Nome utente già in uso.');
       }
       const newUser: AuthUser = { username: username.trim(), password, email: email.trim(), role: 'user' };
       users.push(newUser);
