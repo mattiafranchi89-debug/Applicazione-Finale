@@ -51,8 +51,12 @@ app.post('/api/auth/users', async (req, res) => {
       return res.status(400).json({ error: 'Username già in uso. Scegline un altro.' });
     }
     
+    // First user becomes admin, rest are 'user'
+    const allUsers = await db.select().from(users);
+    const role = allUsers.length === 0 ? 'admin' : 'user';
+    
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-    const [newUser] = await db.insert(users).values({ username, password: hashedPassword, email, role: 'user' }).returning();
+    const [newUser] = await db.insert(users).values({ username, password: hashedPassword, email, role }).returning();
     res.json(sanitizeUser(newUser));
   } catch (error) {
     console.error('Error creating user:', error);
@@ -80,6 +84,26 @@ app.put('/api/auth/users/:username/password', async (req, res) => {
   res.json(sanitizeUser(updated));
 });
 
+// Helper to convert camelCase to snake_case for database
+const camelToSnake = (obj: any) => {
+  const snakeObj: any = {};
+  for (const key in obj) {
+    const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+    snakeObj[snakeKey] = obj[key];
+  }
+  return snakeObj;
+};
+
+// Helper to convert snake_case to camelCase for API responses
+const snakeToCamel = (obj: any) => {
+  const camelObj: any = {};
+  for (const key in obj) {
+    const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+    camelObj[camelKey] = obj[key];
+  }
+  return camelObj;
+};
+
 // Players API
 app.get('/api/players', async (req, res) => {
   const allPlayers = await db.select().from(players);
@@ -87,6 +111,7 @@ app.get('/api/players', async (req, res) => {
 });
 
 app.post('/api/players', async (req, res) => {
+  // Drizzle handles camelCase to snake_case conversion automatically
   const [newPlayer] = await db.insert(players).values(req.body).returning();
   res.json(newPlayer);
 });
@@ -97,6 +122,7 @@ app.put('/api/players/:id', async (req, res) => {
       return res.status(400).json({ error: 'No data provided' });
     }
     
+    // Drizzle handles camelCase to snake_case conversion automatically
     const [updated] = await db.update(players)
       .set(req.body)
       .where(eq(players.id, parseInt(req.params.id)))

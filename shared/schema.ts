@@ -14,11 +14,10 @@ export const players = pgTable('players', {
   number: integer('number').notNull(),
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
-  role: text('role').notNull(),
+  position: text('position').notNull(),
   birthYear: integer('birth_year').notNull(),
   goals: integer('goals').notNull().default(0),
-  assists: integer('assists').notNull().default(0),
-  minutesPlayed: integer('minutes_played').notNull().default(0),
+  presences: integer('presences').notNull().default(0),
   yellowCards: integer('yellow_cards').notNull().default(0),
   redCards: integer('red_cards').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow()
@@ -51,6 +50,7 @@ export const callups = pgTable('callups', {
   meetingTime: text('meeting_time').notNull().default(''),
   kickoffTime: text('kickoff_time').notNull().default(''),
   location: text('location').notNull().default(''),
+  isHome: boolean('is_home').notNull().default(true),
   selectedPlayers: jsonb('selected_players').$type<number[]>().notNull(), // Array di player IDs
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()

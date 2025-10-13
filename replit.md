@@ -30,7 +30,7 @@ The application is built with a React frontend using TypeScript and Vite, styled
 **System Design Choices:**
 - **PostgreSQL Database Schema**: All application data is persisted in a PostgreSQL database (Neon). Key tables include:
     - `users`: User authentication and authorization.
-    - `players`: Player roster, performance tracking (goals, assists, minutesPlayed, yellowCards, redCards).
+    - `players`: Player roster, performance tracking (position, goals, presences, yellowCards, redCards).
     - `trainings`: Weekly training attendance.
     - `matches`: Match fixtures, results, and events.
     - `callups`: Match call-up information including selected players, opponent, date, meetingTime, kickoffTime, and location.
@@ -49,6 +49,40 @@ The application is built with a React frontend using TypeScript and Vite, styled
 - **WhatsApp**: Integration for sending formatted call-up messages.
 
 ## Recent Changes
+
+### October 10, 2025 - Database Reset & WhatsApp Message Enhancement
+**Empty Database Start & Home/Away Indicator**
+
+- **Database Configuration**:
+  - Removed auto-seeding for players and trainings (database now starts empty)
+  - Players list initializes as empty array instead of pre-populated data
+  - Only admin user auto-seeding remains active for first-time setup
+  - Database tables emptied: players (0 records), trainings (0 records)
+
+- **Training Management Enhancement**:
+  - Fixed `addNewWeek` to handle empty trainings array gracefully
+  - First week now starts from current date when database is empty
+  - Subsequent weeks calculate dates based on previous week's sessions
+  - Added user-friendly empty state message in TrainingsTab
+  - Prevents crashes when no training weeks exist
+
+- **Call-Up System Enhancement**:
+  - Added `isHome` boolean field to CallUpData type
+  - Extended `callups` table with `is_home` column (boolean, default true)
+  - `handleMatchChange` automatically determines home/away status from match data
+  - WhatsApp message now shows: `{opponent} (Casa)` or `{opponent} (Trasferta)`
+  - Removed "SEGURO" from convocation message title as requested
+  - Field persisted end-to-end via Drizzle ORM (camelCase → snake_case conversion)
+
+- **User Experience**:
+  - Empty trainings list shows clear instructions to create first week
+  - Call-up form automatically sets home/away based on selected match
+  - WhatsApp preview correctly indicates venue with Italian labels
+
+- **Technical Implementation**:
+  - Schema migration executed via `npm run db:push`
+  - Type safety maintained across frontend and database layer
+  - Backend API handles new `isHome` field without additional changes (Drizzle auto-conversion)
 
 ### October 10, 2025 - User Registration Feature
 **Self-Service Account Creation**
@@ -91,3 +125,101 @@ The application is built with a React frontend using TypeScript and Vite, styled
 - **Player Tables**: Added 🟨 and 🟥 columns showing individual card counts
 - **Automatic Tracking**: Cards synced from match events with database persistence
 - **Bug Fix**: Cards and goals reset correctly when events are removed
+
+### October 10, 2025 - Player Management Fix & Edit Feature
+**Fixed Add Player Bug and Added Edit Functionality**
+
+- **Database Schema Alignment**:
+  - Renamed `role` → `position` to match frontend expectations
+  - Removed unused `assists` and `minutesPlayed` columns
+  - Added `presences` column for tracking player attendance
+  - SQL migrations executed to update existing database structure
+  
+- **Add Player Fix**:
+  - Fixed bug preventing player addition due to schema mismatch
+  - Updated API payload to send correct fields: firstName, lastName, number, position, goals, presences, yellowCards, redCards, birthYear
+  - Backend now accepts and persists new players without errors
+  
+- **Edit Player Feature**:
+  - Added complete edit functionality for existing players
+  - New "Modifica" (Edit) button in player tables (both regular and 2009 players)
+  - Edit form allows modification of: firstName, lastName, number, position, birthYear
+  - Update preserves player statistics (goals, cards, presences)
+  - Cancel button to abort edits and reset form state
+  
+- **Field Name Conversion Fix**:
+  - Added camelCase ↔ snake_case conversion helpers in backend
+  - Frontend uses camelCase (firstName, lastName, etc.)
+  - Database uses snake_case (first_name, last_name, etc.)
+  - Automatic conversion ensures data consistency between frontend and database
+  - Prevents crashes when editing/adding players
+  
+- **UI Enhancements**:
+  - Edit form appears above player tables when editing
+  - Form includes number field for jersey number updates
+  - Clear visual distinction between add and edit modes
+  - Proper state management to prevent conflicts between add/edit modes
+  
+- **Database Auto-Population Fix**:
+  - Added automatic database seeding on first app load
+  - If database is empty, initial players are automatically saved with valid IDs
+  - Prevents "player not found" errors when editing
+  - Ensures consistent data between frontend and database from first launch
+  
+- **Improved Error Handling**:
+  - Added try-catch block in updatePlayer function
+  - App no longer crashes on failed updates
+  - User-friendly error messages displayed via alert
+  - Better debugging with console error logging
+  
+- **Drizzle ORM Field Mapping Fix** (October 10, 2025):
+  - Removed redundant camelCase/snake_case conversion functions
+  - Drizzle ORM automatically handles field name conversion between JavaScript (camelCase) and PostgreSQL (snake_case)
+  - Fixed POST /api/players endpoint that was double-converting field names causing INSERT failures
+  - Fixed GET /api/players endpoint to return data directly from Drizzle
+  - Fixed PUT /api/players/:id endpoint to use Drizzle's automatic conversion
+  - Root cause: Backend was manually converting camelCase to snake_case, but Drizzle schema already defines this mapping
+  
+- **Testing**:
+  - ✅ Database schema successfully aligned with frontend types
+  - ✅ Add player functionality verified working (fixed double conversion bug)
+  - ✅ Edit player functionality implemented and tested
+  - ✅ Field conversion working correctly (Drizzle ORM handles it automatically)
+  - ✅ Database auto-population working correctly
+  - ✅ Error handling prevents crashes
+  - ✅ Backend running without errors
+  - ✅ All workflows operational
+  - ✅ Player creation API tested successfully (Mario Rossi added to database)
+
+### October 10, 2025 - Database Auto-Seeding & Admin User Management
+**Complete Database Initialization System**
+
+- **Auto-Seeding Implementation**:
+  - Implemented automatic database seeding for players (19 players) on first app load
+  - Implemented automatic database seeding for trainings (39 weeks) on first app load
+  - Implemented automatic admin user creation when database is empty
+  - Added React StrictMode protection using useRef to prevent duplicate seeding
+  - Database verified: 19 players, 39 trainings, all with proper IDs and data
+
+- **Admin User Auto-Creation**:
+  - Backend modified to automatically assign 'admin' role to first user created
+  - Frontend seeds admin user (username: admin, password: admin2024) if users table is empty
+  - Subsequent users are created with 'user' role by default
+  - Eliminates need for manual admin user creation
+  
+- **Vite Proxy Configuration**:
+  - Verified Vite proxy working correctly for all API endpoints
+  - All API requests properly routed from frontend (port 5000) to backend (port 3001)
+  - Tested all endpoints: players, trainings, matches, callups, formations, settings, auth
+
+- **Database Verification**:
+  - ✅ Players table: 19 records with valid IDs
+  - ✅ Trainings table: 39 records with valid weekNumbers and weekLabels
+  - ✅ Users table: Admin user created with correct role
+  - ✅ Settings table: Upsert logic working correctly
+  - ✅ All workflows running without errors
+
+- **Technical Notes**:
+  - useRef guard prevents React StrictMode double-seeding in development
+  - Backend creates first user as 'admin', subsequent users as 'user'
+  - Architect recommendations: Consider transaction guards for race conditions, enforce password rotation on first login

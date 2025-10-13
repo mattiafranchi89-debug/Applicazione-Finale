@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Users, Calendar, TrendingUp, UserPlus, Trash2, Award, Activity, ClipboardCheck, CheckCircle, XCircle, Trophy, Target, Send, Pencil, Plus, Trash, FlagTriangleRight, RotateCcw, LogOut, UserCog, Key } from 'lucide-react';
 import { api } from './api';
 
@@ -22,9 +22,11 @@ type Match = { id:number; round:number; date:string; time:string; home:string; a
 
 type TrainingSession = { day:string; date:string; attendance:Record<number, boolean> };
 
-type TrainingWeek = { id:number; week:string; sessions:TrainingSession[] };
+type TrainingWeek = { id:number; weekNumber:number; weekLabel:string; sessions:TrainingSession[] };
 
-type CallUpData = { opponent:string; date:string; meetingTime:string; kickoffTime:string; location:string; selectedPlayers:number[] };
+type LegacyTrainingWeek = { id:number; week:string; sessions:TrainingSession[] };
+
+type CallUpData = { opponent:string; date:string; meetingTime:string; kickoffTime:string; location:string; isHome:boolean; selectedPlayers:number[] };
 
 type FormationData = { id?: number; module: string; positions: Record<string, number | null>; substitutes?: (number | null)[] };
 
@@ -82,7 +84,7 @@ const fixtures: Match[] = [
 const itDate = (iso:string, opts?:Intl.DateTimeFormatOptions) => new Date(iso).toLocaleDateString('it-IT', opts);
 
 // Weeks preloaded
-const initialTrainings: TrainingWeek[] = [
+const initialTrainings: LegacyTrainingWeek[] = [
   { id: 1, week: '01-07 September', sessions: [ { day: 'Lunedì', date: '2025-09-01', attendance: {} }, { day: 'Mercoledì', date: '2025-09-03', attendance: {} }, { day: 'Venerdì', date: '2025-09-05', attendance: {} } ] },
   { id: 2, week: '08-14 September', sessions: [ { day: 'Lunedì', date: '2025-09-08', attendance: {} }, { day: 'Mercoledì', date: '2025-09-10', attendance: {} }, { day: 'Venerdì', date: '2025-09-12', attendance: {} } ] },
   { id: 3, week: '15-21 September', sessions: [ { day: 'Lunedì', date: '2025-09-15', attendance: {} }, { day: 'Mercoledì', date: '2025-09-17', attendance: {} }, { day: 'Venerdì', date: '2025-09-19', attendance: {} } ] },
@@ -124,7 +126,7 @@ const initialTrainings: TrainingWeek[] = [
   { id: 39, week: '25-31 May', sessions: [ { day: 'Lunedì', date: '2026-05-25', attendance: {} }, { day: 'Mercoledì', date: '2026-05-27', attendance: {} }, { day: 'Venerdì', date: '2026-05-29', attendance: {} } ] },
 ];
 
-const initialCallUp: CallUpData = { opponent:'SEMPIONE HALF 1919', date:'2025-10-12', meetingTime:'16:45', kickoffTime:'18:15', location:'Via Antonio Aldini 77, Milano (MI)', selectedPlayers:[] };
+const initialCallUp: CallUpData = { opponent:'SEMPIONE HALF 1919', date:'2025-10-12', meetingTime:'16:45', kickoffTime:'18:15', location:'Via Antonio Aldini 77, Milano (MI)', isHome:false, selectedPlayers:[] };
 
 const initialFormation: FormationData = { module: '4-3-3', positions: {}, substitutes: [null, null, null, null, null, null, null, null, null] };
 
@@ -139,8 +141,8 @@ const LS_KEYS = { matches:'seguro_matches_v1', callup:'seguro_callup_v1', player
 
 export default function App(){
   const [activeTab, setActiveTab] = useState<'dashboard'|'players'|'trainings'|'callup'|'matches'|'results'|'standings'|'scorers'|'admin'>('dashboard');
-  const [players, setPlayers] = useState<Player[]>(initialPlayers);
-  const [trainings, setTrainings] = useState<TrainingWeek[]>(initialTrainings);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [trainings, setTrainings] = useState<TrainingWeek[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
   const [callUpData, setCallUpData] = useState<CallUpData>(initialCallUp);
   const [matches, setMatches] = useState<Match[]>(fixtures);
@@ -150,8 +152,11 @@ export default function App(){
   const [dataLoaded, setDataLoaded] = useState(false);
   const [callupId, setCallupId] = useState<number | null>(null);
   const [formationId, setFormationId] = useState<number | null>(null);
+  const hasSeededRef = useRef(false);
 
   useEffect(()=>{
+    if (hasSeededRef.current) return; // Prevent double seeding in StrictMode
+    hasSeededRef.current = true;
     // Load all data from database
     Promise.all([
       api.players.getAll(),
@@ -161,19 +166,37 @@ export default function App(){
       api.formations.getLatest(),
       api.settings.get(),
       api.auth.getUsers()
-    ]).then(([playersData, trainingsData, matchesData, callupsData, formationData, settingsData, usersData]) => {
-      if (playersData.length > 0) setPlayers(playersData);
-      if (trainingsData.length > 0) setTrainings(trainingsData);
+    ]).then(async ([playersData, trainingsData, matchesData, callupsData, formationData, settingsData, usersData]) => {
+      // Load players from database (no auto-seeding)
+      setPlayers(playersData);
+      
+      // Load trainings from database (no auto-seeding)
+      setTrainings(trainingsData);
+      if (settingsData) {
+        setSelectedWeek(settingsData.selectedWeek);
+      } else if (trainingsData.length > 0 && trainingsData[0].id) {
+        setSelectedWeek(trainingsData[0].id);
+        await api.settings.update({ selectedWeek: trainingsData[0].id });
+      }
+      
+      // If no users in database, seed with initial admin user (first user is auto-admin)
+      if (usersData.length === 0) {
+        const adminUser = await api.auth.createUser('admin', 'admin2024', 'mattia.franchi89@gmail.com');
+        setAuthData(prev => ({ ...prev, users: [adminUser] }));
+      } else {
+        setAuthData(prev => ({ ...prev, users: usersData }));
+      }
+      
       if (matchesData.length > 0) setMatches(matchesData);
       if (callupsData.length > 0 && callupsData[0]) {
         const callupFromDb = callupsData[0];
-        // Ensure all required fields are present with defaults
         setCallUpData({
           opponent: callupFromDb.opponent || '',
           date: callupFromDb.date || '',
           meetingTime: callupFromDb.meetingTime || '',
           kickoffTime: callupFromDb.kickoffTime || '',
           location: callupFromDb.location || '',
+          isHome: callupFromDb.isHome ?? true,
           selectedPlayers: Array.isArray(callupFromDb.selectedPlayers) ? callupFromDb.selectedPlayers : []
         });
         setCallupId(callupFromDb.id);
@@ -183,7 +206,6 @@ export default function App(){
         setFormationId(formationData.id);
       }
       if (settingsData) setSelectedWeek(settingsData.selectedWeek);
-      setAuthData(prev => ({ ...prev, users: usersData }));
       setDataLoaded(true);
     }).catch(err => console.error('Failed to load data:', err));
   },[]);
@@ -312,7 +334,33 @@ export default function App(){
     await api.trainings.update(week.id, { sessions });
     setTrainings(prev=>prev.map(w=>w.id===selectedWeek?updatedWeek:w));
   };
-  const addNewWeek = async()=>{ const last = trainings[trainings.length-1]; const d0 = new Date(last.sessions[0].date); d0.setDate(d0.getDate()+7); const d1 = new Date(d0); d1.setDate(d0.getDate()+2); const d2 = new Date(d0); d2.setDate(d0.getDate()+4); const nextNum = trainings.length + 1; const newWeek = await api.trainings.create({ weekNumber: nextNum, weekLabel:`Settimana ${nextNum}`, sessions:[{day:'Lunedì',date:d0.toISOString().slice(0,10),attendance:{}},{day:'Mercoledì',date:d1.toISOString().slice(0,10),attendance:{}},{day:'Venerdì',date:d2.toISOString().slice(0,10),attendance:{}}]}); setTrainings(prev=>[...prev,newWeek]); setSelectedWeek(newWeek.id); await api.settings.update({ selectedWeek: newWeek.id }); };
+  const addNewWeek = async()=>{ 
+    let d0: Date;
+    if (trainings.length === 0) {
+      // First week: start from today
+      d0 = new Date();
+    } else {
+      // Next week: add 7 days from last week's first session
+      const last = trainings[trainings.length-1]; 
+      d0 = new Date(last.sessions[0].date); 
+      d0.setDate(d0.getDate()+7);
+    }
+    const d1 = new Date(d0); d1.setDate(d0.getDate()+2); 
+    const d2 = new Date(d0); d2.setDate(d0.getDate()+4); 
+    const nextNum = trainings.length + 1; 
+    const newWeek = await api.trainings.create({ 
+      weekNumber: nextNum, 
+      weekLabel:`Settimana ${nextNum}`, 
+      sessions:[
+        {day:'Lunedì',date:d0.toISOString().slice(0,10),attendance:{}},
+        {day:'Mercoledì',date:d1.toISOString().slice(0,10),attendance:{}},
+        {day:'Venerdì',date:d2.toISOString().slice(0,10),attendance:{}}
+      ]
+    }); 
+    setTrainings(prev=>[...prev,newWeek]); 
+    setSelectedWeek(newWeek.id); 
+    await api.settings.update({ selectedWeek: newWeek.id }); 
+  };
   const getPlayerWeekStats = (playerId:number)=>{ 
     const player = players.find(p => p.id === playerId);
     if (player && isCallUpOnly(player)) return {present:0,total:0,percentage:0};
@@ -343,7 +391,7 @@ export default function App(){
 
   const exportTrainingsCSV = () => {
     const csvRows = [];
-    csvRows.push(['Giocatore', 'Nome', 'Cognome', ...trainings.flatMap(w => w.sessions.map(s => `${w.week} - ${s.day} (${s.date})`))].join(','));
+    csvRows.push(['Giocatore', 'Nome', 'Cognome', ...trainings.flatMap(w => w.sessions.map(s => `${w.weekLabel} - ${s.day} (${s.date})`))].join(','));
     
     trainingEligiblePlayers.forEach(player => {
       const row = [player.number, player.firstName, player.lastName];
@@ -463,8 +511,8 @@ export default function App(){
       ]);
       
       // Reset to initial state
-      setPlayers(initialPlayers);
-      setTrainings(initialTrainings);
+      setPlayers([]);
+      setTrainings([]);
       setSelectedWeek(1);
       setMatches(fixtures);
       setCallUpData(initialCallUp);
@@ -480,7 +528,7 @@ export default function App(){
 
   const togglePlayerCallUp = (playerId:number)=>{ setCallUpData(prev=>{ const safePlayers = Array.isArray(prev.selectedPlayers) ? prev.selectedPlayers : []; const already=safePlayers.includes(playerId); if(already) return {...prev, selectedPlayers: safePlayers.filter(id=>id!==playerId)}; if(safePlayers.length>=20){alert('Puoi convocare massimo 20 giocatori!'); return prev;} const p=players.find(x=>x.id===playerId)!; const selected=safePlayers.map(id=>players.find(x=>x.id===id)!); const oldCount=selected.filter(x=>x.birthYear===2005||x.birthYear===2006).length; if((p.birthYear===2005||p.birthYear===2006)&&oldCount>=4){alert('Puoi convocare massimo 4 giocatori nati nel 2005 o 2006!'); return prev;} return {...prev, selectedPlayers:[...safePlayers, playerId]}; }); };
   const sendWhatsApp = ()=>{ const safePlayers = Array.isArray(callUpData.selectedPlayers) ? callUpData.selectedPlayers : []; const grouped:Record<string,Player[]>= {'Portieri':[],'Terzini Destri':[],'Difensori Centrali':[],'Terzini Sinistri':[],'Centrocampisti Centrali':[],'Ali':[],'Attaccanti':[]}; const map:Record<Player["position"],string>={'Portiere':'Portieri','Terzino Destro':'Terzini Destri','Difensore Centrale':'Difensori Centrali','Terzino Sinistro':'Terzini Sinistri','Centrocampista Centrale':'Centrocampisti Centrali','Ala':'Ali','Attaccante':'Attaccanti'}; safePlayers.forEach(id=>{ const p=players.find(x=>x.id===id); if(p) grouped[map[p.position]??'Attaccanti'].push(p); }); const numberEmojis=['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','1️⃣1️⃣','1️⃣2️⃣','1️⃣3️⃣','1️⃣4️⃣','1️⃣5️⃣','1️⃣6️⃣','1️⃣7️⃣','1️⃣8️⃣','1️⃣9️⃣','2️⃣0️⃣']; let c=0; let m=`⚽⚽⚽ JUNIORES PROVINCIALE – Girone B ⚽⚽⚽
-`; m+=`${callUpData.opponent} – SEGURO
+`; m+=`${callUpData.opponent} (${callUpData.isHome ? 'Casa' : 'Trasferta'})
 
 `; m+=`📅 ${itDate(callUpData.date,{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
 `; m+=`⏰ Ritrovo: ${callUpData.meetingTime}
@@ -594,15 +642,18 @@ function Dashboard({totalPlayers,totalMatches,totalGoals,players}:{totalPlayers:
 }
 
 function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendancePercent,exportMatchStatsCSV}:{players:Player[]; setPlayers:React.Dispatch<React.SetStateAction<Player[]>>; getPlayerTotalMinutes:(id:number)=>number; getPlayerAttendancePercent:(id:number)=>number; exportMatchStatsCSV:()=>void}){
-  const [showAdd,setShowAdd]=useState(false); const [form,setForm]=useState<Partial<Player>>({position:'Attaccante',birthYear:2007});
-  const addPlayer=async()=>{ if(!form.firstName||!form.lastName) return; const autoNumber = players.length > 0 ? Math.max(...players.map(p => p.number)) + 1 : 1; const newPlayer = await api.players.create({ firstName:form.firstName!, lastName:form.lastName!, number:autoNumber, position:(form.position??'Attaccante') as Player['position'], goals:0, assists:0, minutesPlayed:0, birthYear:Number(form.birthYear??2007) }); setPlayers(prev=>[...prev, newPlayer]); setForm({position:'Attaccante',birthYear:2007}); setShowAdd(false); };
+  const [showAdd,setShowAdd]=useState(false); const [editingPlayer,setEditingPlayer]=useState<Player|null>(null); const [form,setForm]=useState<Partial<Player>>({position:'Attaccante',birthYear:2007});
+  const addPlayer=async()=>{ if(!form.firstName||!form.lastName) return; const autoNumber = players.length > 0 ? Math.max(...players.map(p => p.number)) + 1 : 1; const newPlayer = await api.players.create({ firstName:form.firstName!, lastName:form.lastName!, number:autoNumber, position:(form.position??'Attaccante') as Player['position'], goals:0, presences:0, yellowCards:0, redCards:0, birthYear:Number(form.birthYear??2007) }); setPlayers(prev=>[...prev, newPlayer]); setForm({position:'Attaccante',birthYear:2007}); setShowAdd(false); };
+  const updatePlayer=async()=>{ if(!editingPlayer||!form.firstName||!form.lastName) return; try { const updated = await api.players.update(editingPlayer.id, { firstName:form.firstName!, lastName:form.lastName!, number:Number(form.number??editingPlayer.number), position:(form.position??editingPlayer.position) as Player['position'], birthYear:Number(form.birthYear??editingPlayer.birthYear) }); setPlayers(prev=>prev.map(p=>p.id===editingPlayer.id?updated:p)); setEditingPlayer(null); setForm({position:'Attaccante',birthYear:2007}); } catch(error) { console.error('Error updating player:', error); alert('Errore durante l\'aggiornamento del giocatore. Il giocatore potrebbe non esistere nel database.'); } };
   const deletePlayer=async(id:number)=>{ await api.players.delete(id); setPlayers(prev=>prev.filter(p=>p.id!==id)); };
+  const startEdit=(player:Player)=>{ setEditingPlayer(player); setForm({firstName:player.firstName,lastName:player.lastName,number:player.number,position:player.position,birthYear:player.birthYear}); setShowAdd(false); };
+  const cancelEdit=()=>{ setEditingPlayer(null); setForm({position:'Attaccante',birthYear:2007}); };
   
   const regularPlayers = players.filter(p => p.birthYear !== 2009);
   const callUpOnlyPlayers = players.filter(p => p.birthYear === 2009);
   
   return (<section className="space-y-6">
-    <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Rosa Giocatori</h2><div className="flex gap-2"><button className="btn btn-primary" onClick={exportMatchStatsCSV}>📊 Esporta Statistiche CSV</button><button className="btn btn-primary" onClick={()=>setShowAdd(s=>!s)}><UserPlus size={18}/>Aggiungi Giocatore</button></div></div>
+    <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Rosa Giocatori</h2><div className="flex gap-2"><button className="btn btn-primary" onClick={exportMatchStatsCSV}>📊 Esporta Statistiche CSV</button><button className="btn btn-primary" onClick={()=>{setShowAdd(s=>!s);setEditingPlayer(null);}}><UserPlus size={18}/>Aggiungi Giocatore</button></div></div>
     {showAdd && (<div className="card grid sm:grid-cols-4 gap-3">
       <div><label className="text-sm text-gray-600">Nome</label><input className="w-full border rounded-lg px-3 py-2" value={form.firstName??''} onChange={e=>setForm(f=>({...f, firstName:e.target.value}))}/></div>
       <div><label className="text-sm text-gray-600">Cognome</label><input className="w-full border rounded-lg px-3 py-2" value={form.lastName??''} onChange={e=>setForm(f=>({...f, lastName:e.target.value}))}/></div>
@@ -610,15 +661,23 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
       <div><label className="text-sm text-gray-600">Anno</label><input className="w-full border rounded-lg px-3 py-2" value={form.birthYear??2007} onChange={e=>setForm(f=>({...f, birthYear:Number(e.target.value)}))}/></div>
       <div className="sm:col-span-4"><button className="btn btn-primary" onClick={addPlayer}>Conferma</button></div>
     </div>)}
+    {editingPlayer && (<div className="card grid sm:grid-cols-5 gap-3">
+      <div><label className="text-sm text-gray-600">Nome</label><input className="w-full border rounded-lg px-3 py-2" value={form.firstName??''} onChange={e=>setForm(f=>({...f, firstName:e.target.value}))}/></div>
+      <div><label className="text-sm text-gray-600">Cognome</label><input className="w-full border rounded-lg px-3 py-2" value={form.lastName??''} onChange={e=>setForm(f=>({...f, lastName:e.target.value}))}/></div>
+      <div><label className="text-sm text-gray-600">Numero</label><input type="number" className="w-full border rounded-lg px-3 py-2" value={form.number??''} onChange={e=>setForm(f=>({...f, number:Number(e.target.value)}))}/></div>
+      <div><label className="text-sm text-gray-600">Ruolo</label><select className="w-full border rounded-lg px-3 py-2" value={form.position} onChange={e=>setForm(f=>({...f, position:e.target.value as any}))}><option>Portiere</option><option>Terzino Destro</option><option>Difensore Centrale</option><option>Terzino Sinistro</option><option>Centrocampista Centrale</option><option>Ala</option><option>Attaccante</option></select></div>
+      <div><label className="text-sm text-gray-600">Anno</label><input type="number" className="w-full border rounded-lg px-3 py-2" value={form.birthYear??2007} onChange={e=>setForm(f=>({...f, birthYear:Number(e.target.value)}))}/></div>
+      <div className="sm:col-span-5 flex gap-2"><button className="btn btn-primary" onClick={updatePlayer}>Salva Modifiche</button><button className="btn btn-ghost" onClick={cancelEdit}>Annulla</button></div>
+    </div>)}
     
     <div>
       <h3 className="text-md font-semibold mb-3">🔵 Giocatori Regolari</h3>
-      <div className="card overflow-auto"><table className="table w-full min-w-[900px]"><thead><tr className="text-left text-sm text-gray-500"><th>Nome</th><th>Cognome</th><th>Ruolo</th><th>Anno</th><th>Gol</th><th>Minuti</th><th>🟨</th><th>🟥</th><th>% Allen.</th><th>Azioni</th></tr></thead><tbody>{[...regularPlayers].sort((a,b)=>a.firstName.localeCompare(b.firstName)).map(p=>(<tr key={p.id} className="border-t"><td className="font-medium">{p.firstName}</td><td className="font-medium">{p.lastName}</td><td>{p.position}</td><td><span className={`badge ${p.birthYear<=2006?'bg-orange-100 text-orange-700':'bg-blue-100 text-blue-700'}`}>{p.birthYear}</span></td><td>{p.goals}</td><td>{getPlayerTotalMinutes(p.id)}</td><td className="text-center">{p.yellowCards||0}</td><td className="text-center">{p.redCards||0}</td><td>{getPlayerAttendancePercent(p.id)}%</td><td><button className="text-red-600 hover:text-red-800" onClick={()=>deletePlayer(p.id)} title="Elimina"><Trash2 size={18}/></button></td></tr>))}</tbody></table></div>
+      <div className="card overflow-auto"><table className="table w-full min-w-[900px]"><thead><tr className="text-left text-sm text-gray-500"><th>Nome</th><th>Cognome</th><th>Ruolo</th><th>Anno</th><th>Gol</th><th>Minuti</th><th>🟨</th><th>🟥</th><th>% Allen.</th><th>Azioni</th></tr></thead><tbody>{[...regularPlayers].sort((a,b)=>a.firstName.localeCompare(b.firstName)).map(p=>(<tr key={p.id} className="border-t"><td className="font-medium">{p.firstName}</td><td className="font-medium">{p.lastName}</td><td>{p.position}</td><td><span className={`badge ${p.birthYear<=2006?'bg-orange-100 text-orange-700':'bg-blue-100 text-blue-700'}`}>{p.birthYear}</span></td><td>{p.goals}</td><td>{getPlayerTotalMinutes(p.id)}</td><td className="text-center">{p.yellowCards||0}</td><td className="text-center">{p.redCards||0}</td><td>{getPlayerAttendancePercent(p.id)}%</td><td><div className="flex gap-2"><button className="text-blue-600 hover:text-blue-800" onClick={()=>startEdit(p)} title="Modifica"><Pencil size={18}/></button><button className="text-red-600 hover:text-red-800" onClick={()=>deletePlayer(p.id)} title="Elimina"><Trash2 size={18}/></button></div></td></tr>))}</tbody></table></div>
     </div>
     
     <div>
       <h3 className="text-md font-semibold mb-3">🟣 Giocatori Convocabili (2009)</h3>
-      <div className="card overflow-auto"><table className="table w-full min-w-[860px]"><thead><tr className="text-left text-sm text-gray-500"><th>Nome</th><th>Cognome</th><th>Ruolo</th><th>Anno</th><th>Gol</th><th>Minuti</th><th>🟨</th><th>🟥</th><th>Azioni</th></tr></thead><tbody>{callUpOnlyPlayers.length===0?(<tr><td colSpan={9} className="text-center text-gray-500 py-4">Nessun giocatore convocabile</td></tr>):([...callUpOnlyPlayers].sort((a,b)=>a.firstName.localeCompare(b.firstName)).map(p=>(<tr key={p.id} className="border-t"><td className="font-medium">{p.firstName}</td><td className="font-medium">{p.lastName}</td><td>{p.position}</td><td><span className="badge bg-purple-100 text-purple-700">{p.birthYear}</span></td><td>{p.goals}</td><td>{getPlayerTotalMinutes(p.id)}</td><td className="text-center">{p.yellowCards||0}</td><td className="text-center">{p.redCards||0}</td><td><button className="text-red-600 hover:text-red-800" onClick={()=>deletePlayer(p.id)} title="Elimina"><Trash2 size={18}/></button></td></tr>)))}</tbody></table></div>
+      <div className="card overflow-auto"><table className="table w-full min-w-[860px]"><thead><tr className="text-left text-sm text-gray-500"><th>Nome</th><th>Cognome</th><th>Ruolo</th><th>Anno</th><th>Gol</th><th>Minuti</th><th>🟨</th><th>🟥</th><th>Azioni</th></tr></thead><tbody>{callUpOnlyPlayers.length===0?(<tr><td colSpan={9} className="text-center text-gray-500 py-4">Nessun giocatore convocabile</td></tr>):([...callUpOnlyPlayers].sort((a,b)=>a.firstName.localeCompare(b.firstName)).map(p=>(<tr key={p.id} className="border-t"><td className="font-medium">{p.firstName}</td><td className="font-medium">{p.lastName}</td><td>{p.position}</td><td><span className="badge bg-purple-100 text-purple-700">{p.birthYear}</span></td><td>{p.goals}</td><td>{getPlayerTotalMinutes(p.id)}</td><td className="text-center">{p.yellowCards||0}</td><td className="text-center">{p.redCards||0}</td><td><div className="flex gap-2"><button className="text-blue-600 hover:text-blue-800" onClick={()=>startEdit(p)} title="Modifica"><Pencil size={18}/></button><button className="text-red-600 hover:text-red-800" onClick={()=>deletePlayer(p.id)} title="Elimina"><Trash2 size={18}/></button></div></td></tr>)))}</tbody></table></div>
     </div>
   </section>);
 }
@@ -632,22 +691,63 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
     }
   };
   
+  const getWeekStats = (trainingWeek: TrainingWeek) => {
+    const totalSessions = trainingWeek.sessions.length;
+    const totalAbsences = trainingWeek.sessions.reduce((sum, s) => sum + Object.values(s.attendance).filter(a => a === true).length, 0);
+    const totalPossiblePresences = totalSessions * players.length;
+    const totalPresences = totalPossiblePresences - totalAbsences;
+    const percentage = totalPossiblePresences > 0 ? Math.round((totalPresences / totalPossiblePresences) * 100) : 0;
+    return { totalPresences, totalAbsences, percentage };
+  };
+  
   return (<section className="space-y-4">
     <div className="flex items-center gap-3">
       <h2 className="text-lg font-semibold">Presenze Allenamenti</h2>
       <button className="btn btn-primary" onClick={addNewWeek}>Nuova Settimana</button>
-      <div className="ml-auto flex items-center gap-2">
-        <span className="text-sm text-gray-600">Seleziona Settimana</span>
-        <select className="px-3 py-2 border rounded-lg" value={selectedWeek} onChange={e=>setSelectedWeek(Number(e.target.value))}>
-          {trainings.map(t=> <option key={t.id} value={t.id}>{t.week}</option>) }
-        </select>
-      </div>
+      <button className="btn btn-ghost" onClick={exportTrainingsCSV}>📊 Esporta CSV</button>
     </div>
-    <div className="card">
-      <button className="btn btn-primary" onClick={exportTrainingsCSV}>📊 Esporta Presenze CSV</button>
+    
+    <h2 className="text-lg font-semibold">Calendario Allenamenti</h2>
+    {trainings.length === 0 && (
+      <div className="card text-center py-8">
+        <p className="text-gray-500 mb-3">Nessuna settimana di allenamento creata</p>
+        <p className="text-sm text-gray-400">Clicca su "Nuova Settimana" per iniziare</p>
+      </div>
+    )}
+    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {trainings.map(t => {
+        const stats = getWeekStats(t);
+        const isSelected = t.id === selectedWeek;
+        return (
+          <div 
+            key={t.id} 
+            className={`card cursor-pointer transition ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'}`}
+            onClick={() => setSelectedWeek(t.id)}
+          >
+            <div className="text-xs text-gray-500">Settimana {t.weekNumber}</div>
+            <h3 className="font-semibold mt-1">{t.weekLabel}</h3>
+            <div className="mt-1 text-sm text-gray-600">
+              {t.sessions.map((s, idx) => (
+                <div key={idx}>{s.day} {itDate(s.date, {day: '2-digit', month: '2-digit'})}</div>
+              ))}
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              <div className="text-sm">
+                <span className="text-green-700 font-semibold">{stats.totalPresences} Presenze</span>
+                <span className="text-gray-500 mx-1">•</span>
+                <span className="text-red-700 font-semibold">{stats.totalAbsences} Assenze</span>
+              </div>
+            </div>
+            <div className="mt-1 text-sm text-gray-600">{stats.percentage}% Presenza Media</div>
+            {isSelected && <div className="mt-2 text-blue-600 text-sm font-medium">✓ Selezionata</div>}
+          </div>
+        );
+      })}
     </div>
 
-    {week && week.sessions.map((s,idx)=>(
+    {week && (<>
+      <h2 className="text-lg font-semibold mt-6">Dettagli Settimana: {week.weekLabel}</h2>
+      {week.sessions.map((s,idx)=>(
       <div key={idx} className="card">
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -681,6 +781,7 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
         {players.map(pl=>{ const st=getPlayerWeekStats(pl.id); return <div key={pl.id} className="bg-gray-50 rounded p-3"><div className="font-medium">{pl.firstName} {pl.lastName} <span className="text-xs text-gray-500">N° {pl.number}</span></div><div className="text-sm text-gray-600">{st.present}/{st.total} — {st.percentage}%</div></div>; })}
       </div>
     </div>
+    </>)}
   </section>);
 }
 
@@ -691,7 +792,7 @@ function CallUpTab({ players, matches, callUpData, setCallUpData, togglePlayerCa
   
   const handleMatchChange = (matchId: string) => {
     if (!matchId) {
-      setCallUpData(v=>({...v, opponent: '', date: '', meetingTime: '', kickoffTime: '', location: ''}));
+      setCallUpData(v=>({...v, opponent: '', date: '', meetingTime: '', kickoffTime: '', location: '', isHome: true}));
       return;
     }
     
@@ -714,7 +815,8 @@ function CallUpTab({ players, matches, callUpData, setCallUpData, togglePlayerCa
         date: match.date,
         meetingTime: meetingTime,
         kickoffTime: match.time,
-        location: location
+        location: location,
+        isHome: isHome
       }));
     }
   };
