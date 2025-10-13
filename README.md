@@ -35,3 +35,6 @@ npm run admin:reset -- <nuova-password> <email>
 ```
 
 In alternativa è possibile impostare le variabili d'ambiente `ADMIN_RESET_PASSWORD`, `ADMIN_EMAIL` e `ADMIN_USERNAME` prima di eseguire il comando. Impostando `ADMIN_PASSWORD` (o `ADMIN_FORCE_RESET=true`) il server aggiornerà automaticamente la password all'avvio.
+
+## Come applicare le modifiche dell'agente
+Se devi riallineare un tuo clone del progetto allo stesso stato generato dall'agente puoi seguire la guida in `docs/apply-agent-changes.md`, che include sia una patch pronta (`docs/ensure-admin-account-update.patch`) sia i comandi `git` per collegarti direttamente al branch dell'agente.
