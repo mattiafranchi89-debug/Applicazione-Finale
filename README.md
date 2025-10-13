@@ -17,3 +17,18 @@ npm run dev
 npm run build
 npm run preview
 ```
+
+## Reset credenziali admin
+Se le credenziali dell'amministratore vengono smarrite o bloccate, è possibile rigenerarle eseguendo:
+
+```bash
+npm run admin:reset
+```
+
+Di default verrà ripristinata la password `admin2024` sull'utente `admin`. È possibile passare una nuova password ed un indirizzo email personalizzato:
+
+```bash
+npm run admin:reset -- <nuova-password> <email>
+```
+
+In alternativa è possibile impostare le variabili d'ambiente `ADMIN_RESET_PASSWORD` e `ADMIN_EMAIL` prima di eseguire il comando.
