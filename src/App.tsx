@@ -2,153 +2,43 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Users, Calendar, TrendingUp, UserPlus, Trash2, Award, Activity, ClipboardCheck, CheckCircle, XCircle, Trophy, Target, Send, Pencil, Plus, Trash, FlagTriangleRight, RotateCcw, LogOut, UserCog, Key } from 'lucide-react';
 import { api } from './api';
-
-type AuthUser = { username: string; password?: string; email: string; role: 'admin' | 'user' };
-type AuthData = { currentUser: AuthUser | null; users: AuthUser[] };
-
-type Player = { id:number; firstName:string; lastName:string; number:number; position:"Portiere"|"Terzino Destro"|"Difensore Centrale"|"Terzino Sinistro"|"Centrocampista Centrale"|"Ala"|"Attaccante"; goals:number; presences:number; birthYear:number; yellowCards:number; redCards:number; };
-
-type TeamSide = 'SEGURO'|'AVVERSARI';
-
-type GoalEvent = { id:string; type:'GOAL'; minute:number; team:TeamSide; playerId?:number; note?:string };
-
-type CardEvent = { id:string; type:'YELLOW'|'RED'; minute:number; team:TeamSide; playerId?:number; note?:string };
-
-type SubEvent = { id:string; type:'SUB'; minute:number; team:'SEGURO'; outId:number; inId:number; note?:string };
-
-type MatchEvent = GoalEvent | CardEvent | SubEvent;
-
-type Match = { id:number; round:number; date:string; time:string; home:string; away:string; address:string; city:string; result?:string; events:MatchEvent[]; minutes?:Record<number,number> };
-
-type TrainingSession = { day:string; date:string; attendance:Record<number, boolean> };
-
-type TrainingWeek = { id:number; weekNumber:number; weekLabel:string; sessions:TrainingSession[] };
-
-type LegacyTrainingWeek = { id:number; week:string; sessions:TrainingSession[] };
-
-type CallUpData = { opponent:string; date:string; meetingTime:string; kickoffTime:string; location:string; isHome:boolean; selectedPlayers:number[] };
-
-type FormationData = { id?: number; module: string; positions: Record<string, number | null>; substitutes?: (number | null)[] };
-
-const initialPlayers: Player[] = [
-  { id: 1, firstName: 'Gabriele', lastName: 'Russo', number: 1, position: 'Portiere', goals: 0, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 2, firstName: 'Andrea', lastName: 'Capasso', number: 12, position: 'Portiere', goals: 0, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 3, firstName: 'Gabriele', lastName: 'Lucchini', number: 2, position: 'Terzino Destro', goals: 1, presences: 12, birthYear: 2006, yellowCards: 0, redCards: 0 },
-  { id: 4, firstName: 'Davide', lastName: 'Toscano', number: 3, position: 'Terzino Destro', goals: 0, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 5, firstName: 'Giovanni', lastName: 'Montalto', number: 4, position: 'Difensore Centrale', goals: 2, presences: 11, birthYear: 2006, yellowCards: 0, redCards: 0 },
-  { id: 6, firstName: 'Massimo', lastName: 'Calvone', number: 5, position: 'Difensore Centrale', goals: 1, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 7, firstName: 'Elia', lastName: 'Restivo', number: 6, position: 'Terzino Sinistro', goals: 0, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 8, firstName: 'Lorenzo', lastName: 'Dopinto', number: 8, position: 'Centrocampista Centrale', goals: 3, presences: 11, birthYear: 2006, yellowCards: 0, redCards: 0 },
-  { id: 9, firstName: 'Filippo', lastName: 'Lesino', number: 7, position: 'Centrocampista Centrale', goals: 2, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 10, firstName: 'Riccardo', lastName: 'Brocca', number: 10, position: 'Centrocampista Centrale', goals: 4, presences: 11, birthYear: 2005, yellowCards: 0, redCards: 0 },
-  { id: 11, firstName: 'Filippo', lastName: 'Cogliati', number: 11, position: 'Ala', goals: 5, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 12, firstName: 'Abdullah', lastName: 'Tahsif', number: 14, position: 'Ala', goals: 3, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 13, firstName: 'Afif', lastName: 'Adam', number: 15, position: 'Ala', goals: 2, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 14, firstName: 'Cristian', lastName: "D'Agostino", number: 16, position: 'Ala', goals: 4, presences: 12, birthYear: 2006, yellowCards: 0, redCards: 0 },
-  { id: 15, firstName: 'Gabriele', lastName: 'Mazzei', number: 17, position: 'Ala', goals: 3, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 16, firstName: 'Andrei', lastName: 'Dorosan', number: 9, position: 'Attaccante', goals: 8, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 17, firstName: 'Gaetano', lastName: 'Cristian', number: 18, position: 'Attaccante', goals: 6, presences: 11, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 18, firstName: 'Domenico', lastName: 'Romito', number: 19, position: 'Attaccante', goals: 7, presences: 10, birthYear: 2007, yellowCards: 0, redCards: 0 },
-  { id: 19, firstName: 'Enrico', lastName: 'Amelotti', number: 20, position: 'Attaccante', goals: 5, presences: 12, birthYear: 2007, yellowCards: 0, redCards: 0 },
-];
-
-const fixtures: Match[] = [
-  { id: 1,  round: 1,  date: '2025-09-20', time: '18:00', home: 'Vighignolo', away: 'Seguro', address: 'Via Pace S.N.C.', city: 'Settimo Milanese Fr. Vighignolo', result: '4-3', events: [] },
-  { id: 2,  round: 2,  date: '2025-09-27', time: '14:45', home: 'Seguro', away: 'Villapizzone', address: 'Via Sandro Pertini 13', city: 'Seguro', result: '1-1', events: [] },
-  { id: 3,  round: 3,  date: '2025-10-04', time: '18:15', home: 'Sempione Half 1919', away: 'Seguro', address: 'Via Arturo Graf, 4', city: 'Milano', result: '1-1', events: [] },
-  { id: 4,  round: 4,  date: '2025-10-11', time: '14:45', home: 'Seguro', away: 'Polisportiva Or. Pa. S.', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [] },
-  { id: 5,  round: 5,  date: '2025-10-18', time: '17:30', home: 'Cassina Nuova', away: 'Seguro', address: 'Via Oglio, 1/3', city: 'Bollate Fraz. Cassina Nuova', events: [] },
-  { id: 6,  round: 6,  date: '2025-10-25', time: '14:45', home: 'Seguro', away: 'Cob 91', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [] },
-  { id: 7,  round: 7,  date: '2025-11-01', time: '17:30', home: 'Ardor Bollate', away: 'Seguro', address: 'Via Repubblica 6', city: 'Bollate', events: [] },
-  { id: 8,  round: 8,  date: '2025-11-08', time: '14:45', home: 'Garibaldina 1932', away: 'Seguro', address: 'Via Don Giovanni Minzoni 4', city: 'Milano', events: [] },
-  { id: 9,  round: 9,  date: '2025-11-15', time: '14:45', home: 'Seguro', away: 'Quinto Romano', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [] },
-  { id: 10, round: 10, date: '2025-11-22', time: '17:45', home: 'Pro Novate', away: 'Seguro', address: 'Via V. Torlani 6', city: 'Novate Milanese', events: [] },
-  { id: 11, round: 11, date: '2025-11-29', time: '14:45', home: 'Seguro', away: 'Calcio Bonola', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [] },
-  { id: 12, round: 12, date: '2025-12-06', time: '18:00', home: 'Bollatese', away: 'Seguro', address: 'Via Varalli n. 2', city: 'Bollate', events: [] },
-  { id: 13, round: 13, date: '2025-12-13', time: '14:45', home: 'Seguro', away: 'Vigor FC', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [] },
-  { id: 14, round: 14, date: '2026-01-17', time: '14:45', home: 'Seguro', away: 'Vighignolo', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [] },
-  { id: 15, round: 15, date: '2026-01-24', time: '18:15', home: 'Villapizzone', away: 'Seguro', address: 'Via Perin del Vaga 11', city: 'Milano', events: [] },
-  { id: 16, round: 16, date: '2026-01-31', time: '14:45', home: 'Seguro', away: 'Sempione Half 1919', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [] },
-  { id: 17, round: 17, date: '2026-02-07', time: '16:00', home: 'Polisportiva Or. Pa. S.', away: 'Seguro', address: 'Via Comasina 115', city: 'Milano', events: [] },
-  { id: 18, round: 18, date: '2026-02-14', time: '14:45', home: 'Seguro', away: 'Cassina Nuova', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [] },
-  { id: 19, round: 19, date: '2026-02-21', time: '18:00', home: 'Cob 91', away: 'Seguro', address: 'Via Fabio Filzi, 31', city: 'Cormano', events: [] },
-  { id: 20, round: 20, date: '2026-02-28', time: '14:45', home: 'Seguro', away: 'Ardor Bollate', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [] },
-  { id: 21, round: 21, date: '2026-03-07', time: '14:45', home: 'Seguro', away: 'Garibaldina 1932', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [] },
-  { id: 22, round: 22, date: '2026-03-14', time: '17:00', home: 'Quinto Romano', away: 'Seguro', address: 'Via Vittorio De Sica, 14', city: 'Quinto Romano', events: [] },
-  { id: 23, round: 23, date: '2026-03-21', time: '14:45', home: 'Seguro', away: 'Pro Novate', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [] },
-  { id: 24, round: 24, date: '2026-03-28', time: '18:00', home: 'Calcio Bonola', away: 'Seguro', address: 'Via Fichi, 1', city: 'Milano', events: [] },
-  { id: 25, round: 25, date: '2026-04-11', time: '14:45', home: 'Seguro', away: 'Bollatese', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [] },
-  { id: 26, round: 26, date: '2026-04-18', time: '15:30', home: 'Vigor FC', away: 'Seguro', address: 'Via San Michele del Carso, 55', city: 'Paderno Dugnano', events: [] },
-];
+import type {
+  AuthData,
+  AuthUser,
+  CallUpData,
+  CardEvent,
+  FormationData,
+  GoalEvent,
+  Match,
+  MatchEvent,
+  Player,
+  SubEvent,
+  TeamSide,
+  TrainingSession,
+  TrainingWeek,
+} from './types';
+import {
+  INITIAL_AUTH_DATA,
+  INITIAL_CALLUP,
+  INITIAL_FORMATION,
+  INITIAL_MATCHES,
+  INITIAL_PLAYERS,
+  INITIAL_SETTINGS,
+  INITIAL_TRAINING_WEEKS,
+} from './initialData';
 
 const itDate = (iso:string, opts?:Intl.DateTimeFormatOptions) => new Date(iso).toLocaleDateString('it-IT', opts);
 
-// Weeks preloaded
-const initialTrainings: LegacyTrainingWeek[] = [
-  { id: 1, week: '01-07 September', sessions: [ { day: 'Lunedì', date: '2025-09-01', attendance: {} }, { day: 'Mercoledì', date: '2025-09-03', attendance: {} }, { day: 'Venerdì', date: '2025-09-05', attendance: {} } ] },
-  { id: 2, week: '08-14 September', sessions: [ { day: 'Lunedì', date: '2025-09-08', attendance: {} }, { day: 'Mercoledì', date: '2025-09-10', attendance: {} }, { day: 'Venerdì', date: '2025-09-12', attendance: {} } ] },
-  { id: 3, week: '15-21 September', sessions: [ { day: 'Lunedì', date: '2025-09-15', attendance: {} }, { day: 'Mercoledì', date: '2025-09-17', attendance: {} }, { day: 'Venerdì', date: '2025-09-19', attendance: {} } ] },
-  { id: 4, week: '22-28 September', sessions: [ { day: 'Lunedì', date: '2025-09-22', attendance: {} }, { day: 'Mercoledì', date: '2025-09-24', attendance: {} }, { day: 'Venerdì', date: '2025-09-26', attendance: {} } ] },
-  { id: 5, week: '29 Sep - 05 Oct', sessions: [ { day: 'Lunedì', date: '2025-09-29', attendance: {} }, { day: 'Mercoledì', date: '2025-10-01', attendance: {} }, { day: 'Venerdì', date: '2025-10-03', attendance: {} } ] },
-  { id: 6, week: '06-12 October', sessions: [ { day: 'Lunedì', date: '2025-10-06', attendance: {} }, { day: 'Mercoledì', date: '2025-10-08', attendance: {} }, { day: 'Venerdì', date: '2025-10-10', attendance: {} } ] },
-  { id: 7, week: '13-19 October', sessions: [ { day: 'Lunedì', date: '2025-10-13', attendance: {} }, { day: 'Mercoledì', date: '2025-10-15', attendance: {} }, { day: 'Venerdì', date: '2025-10-17', attendance: {} } ] },
-  { id: 8, week: '20-26 October', sessions: [ { day: 'Lunedì', date: '2025-10-20', attendance: {} }, { day: 'Mercoledì', date: '2025-10-22', attendance: {} }, { day: 'Venerdì', date: '2025-10-24', attendance: {} } ] },
-  { id: 9, week: '27 Oct - 02 Nov', sessions: [ { day: 'Lunedì', date: '2025-10-27', attendance: {} }, { day: 'Mercoledì', date: '2025-10-29', attendance: {} }, { day: 'Venerdì', date: '2025-10-31', attendance: {} } ] },
-  { id: 10, week: '03-09 November', sessions: [ { day: 'Lunedì', date: '2025-11-03', attendance: {} }, { day: 'Mercoledì', date: '2025-11-05', attendance: {} }, { day: 'Venerdì', date: '2025-11-07', attendance: {} } ] },
-  { id: 11, week: '10-16 November', sessions: [ { day: 'Lunedì', date: '2025-11-10', attendance: {} }, { day: 'Mercoledì', date: '2025-11-12', attendance: {} }, { day: 'Venerdì', date: '2025-11-14', attendance: {} } ] },
-  { id: 12, week: '17-23 November', sessions: [ { day: 'Lunedì', date: '2025-11-17', attendance: {} }, { day: 'Mercoledì', date: '2025-11-19', attendance: {} }, { day: 'Venerdì', date: '2025-11-21', attendance: {} } ] },
-  { id: 13, week: '24-30 November', sessions: [ { day: 'Lunedì', date: '2025-11-24', attendance: {} }, { day: 'Mercoledì', date: '2025-11-26', attendance: {} }, { day: 'Venerdì', date: '2025-11-28', attendance: {} } ] },
-  { id: 14, week: '01-07 December', sessions: [ { day: 'Lunedì', date: '2025-12-01', attendance: {} }, { day: 'Mercoledì', date: '2025-12-03', attendance: {} }, { day: 'Venerdì', date: '2025-12-05', attendance: {} } ] },
-  { id: 15, week: '08-14 December', sessions: [ { day: 'Lunedì', date: '2025-12-08', attendance: {} }, { day: 'Mercoledì', date: '2025-12-10', attendance: {} }, { day: 'Venerdì', date: '2025-12-12', attendance: {} } ] },
-  { id: 16, week: '15-21 December', sessions: [ { day: 'Lunedì', date: '2025-12-15', attendance: {} }, { day: 'Mercoledì', date: '2025-12-17', attendance: {} }, { day: 'Venerdì', date: '2025-12-19', attendance: {} } ] },
-  { id: 17, week: '22-28 December', sessions: [ { day: 'Lunedì', date: '2025-12-22', attendance: {} }, { day: 'Mercoledì', date: '2025-12-24', attendance: {} }, { day: 'Venerdì', date: '2025-12-26', attendance: {} } ] },
-  { id: 18, week: '29 Dec - 04 Jan', sessions: [ { day: 'Lunedì', date: '2025-12-29', attendance: {} }, { day: 'Mercoledì', date: '2025-12-31', attendance: {} }, { day: 'Venerdì', date: '2026-01-02', attendance: {} } ] },
-  { id: 19, week: '05-11 January', sessions: [ { day: 'Lunedì', date: '2026-01-05', attendance: {} }, { day: 'Mercoledì', date: '2026-01-07', attendance: {} }, { day: 'Venerdì', date: '2026-01-09', attendance: {} } ] },
-  { id: 20, week: '12-18 January', sessions: [ { day: 'Lunedì', date: '2026-01-12', attendance: {} }, { day: 'Mercoledì', date: '2026-01-14', attendance: {} }, { day: 'Venerdì', date: '2026-01-16', attendance: {} } ] },
-  { id: 21, week: '19-25 January', sessions: [ { day: 'Lunedì', date: '2026-01-19', attendance: {} }, { day: 'Mercoledì', date: '2026-01-21', attendance: {} }, { day: 'Venerdì', date: '2026-01-23', attendance: {} } ] },
-  { id: 22, week: '26 Jan - 01 Feb', sessions: [ { day: 'Lunedì', date: '2026-01-26', attendance: {} }, { day: 'Mercoledì', date: '2026-01-28', attendance: {} }, { day: 'Venerdì', date: '2026-01-30', attendance: {} } ] },
-  { id: 23, week: '02-08 February', sessions: [ { day: 'Lunedì', date: '2026-02-02', attendance: {} }, { day: 'Mercoledì', date: '2026-02-04', attendance: {} }, { day: 'Venerdì', date: '2026-02-06', attendance: {} } ] },
-  { id: 24, week: '09-15 February', sessions: [ { day: 'Lunedì', date: '2026-02-09', attendance: {} }, { day: 'Mercoledì', date: '2026-02-11', attendance: {} }, { day: 'Venerdì', date: '2026-02-13', attendance: {} } ] },
-  { id: 25, week: '16-22 February', sessions: [ { day: 'Lunedì', date: '2026-02-16', attendance: {} }, { day: 'Mercoledì', date: '2026-02-18', attendance: {} }, { day: 'Venerdì', date: '2026-02-20', attendance: {} } ] },
-  { id: 26, week: '23 Feb - 01 Mar', sessions: [ { day: 'Lunedì', date: '2026-02-23', attendance: {} }, { day: 'Mercoledì', date: '2026-02-25', attendance: {} }, { day: 'Venerdì', date: '2026-02-27', attendance: {} } ] },
-  { id: 27, week: '02-08 March', sessions: [ { day: 'Lunedì', date: '2026-03-02', attendance: {} }, { day: 'Mercoledì', date: '2026-03-04', attendance: {} }, { day: 'Venerdì', date: '2026-03-06', attendance: {} } ] },
-  { id: 28, week: '09-15 March', sessions: [ { day: 'Lunedì', date: '2026-03-09', attendance: {} }, { day: 'Mercoledì', date: '2026-03-11', attendance: {} }, { day: 'Venerdì', date: '2026-03-13', attendance: {} } ] },
-  { id: 29, week: '16-22 March', sessions: [ { day: 'Lunedì', date: '2026-03-16', attendance: {} }, { day: 'Mercoledì', date: '2026-03-18', attendance: {} }, { day: 'Venerdì', date: '2026-03-20', attendance: {} } ] },
-  { id: 30, week: '23-29 March', sessions: [ { day: 'Lunedì', date: '2026-03-23', attendance: {} }, { day: 'Mercoledì', date: '2026-03-25', attendance: {} }, { day: 'Venerdì', date: '2026-03-27', attendance: {} } ] },
-  { id: 31, week: '30 Mar - 05 Apr', sessions: [ { day: 'Lunedì', date: '2026-03-30', attendance: {} }, { day: 'Mercoledì', date: '2026-04-01', attendance: {} }, { day: 'Venerdì', date: '2026-04-03', attendance: {} } ] },
-  { id: 32, week: '06-12 April', sessions: [ { day: 'Lunedì', date: '2026-04-06', attendance: {} }, { day: 'Mercoledì', date: '2026-04-08', attendance: {} }, { day: 'Venerdì', date: '2026-04-10', attendance: {} } ] },
-  { id: 33, week: '13-19 April', sessions: [ { day: 'Lunedì', date: '2026-04-13', attendance: {} }, { day: 'Mercoledì', date: '2026-04-15', attendance: {} }, { day: 'Venerdì', date: '2026-04-17', attendance: {} } ] },
-  { id: 34, week: '20-26 April', sessions: [ { day: 'Lunedì', date: '2026-04-20', attendance: {} }, { day: 'Mercoledì', date: '2026-04-22', attendance: {} }, { day: 'Venerdì', date: '2026-04-24', attendance: {} } ] },
-  { id: 35, week: '27 Apr - 03 May', sessions: [ { day: 'Lunedì', date: '2026-04-27', attendance: {} }, { day: 'Mercoledì', date: '2026-04-29', attendance: {} }, { day: 'Venerdì', date: '2026-05-01', attendance: {} } ] },
-  { id: 36, week: '04-10 May', sessions: [ { day: 'Lunedì', date: '2026-05-04', attendance: {} }, { day: 'Mercoledì', date: '2026-05-06', attendance: {} }, { day: 'Venerdì', date: '2026-05-08', attendance: {} } ] },
-  { id: 37, week: '11-17 May', sessions: [ { day: 'Lunedì', date: '2026-05-11', attendance: {} }, { day: 'Mercoledì', date: '2026-05-13', attendance: {} }, { day: 'Venerdì', date: '2026-05-15', attendance: {} } ] },
-  { id: 38, week: '18-24 May', sessions: [ { day: 'Lunedì', date: '2026-05-18', attendance: {} }, { day: 'Mercoledì', date: '2026-05-20', attendance: {} }, { day: 'Venerdì', date: '2026-05-22', attendance: {} } ] },
-  { id: 39, week: '25-31 May', sessions: [ { day: 'Lunedì', date: '2026-05-25', attendance: {} }, { day: 'Mercoledì', date: '2026-05-27', attendance: {} }, { day: 'Venerdì', date: '2026-05-29', attendance: {} } ] },
-];
-
-const initialCallUp: CallUpData = { opponent:'SEMPIONE HALF 1919', date:'2025-10-12', meetingTime:'16:45', kickoffTime:'18:15', location:'Via Antonio Aldini 77, Milano (MI)', isHome:false, selectedPlayers:[] };
-
-const initialFormation: FormationData = { module: '4-3-3', positions: {}, substitutes: [null, null, null, null, null, null, null, null, null] };
-
-const initialAuthData: AuthData = {
-  currentUser: null,
-  users: [
-    { username: 'admin', password: 'admin2024', email: 'mattia.franchi89@gmail.com', role: 'admin' }
-  ]
-};
-
-const LS_KEYS = { matches:'seguro_matches_v1', callup:'seguro_callup_v1', players:'seguro_players_v1', trainings:'seguro_trainings_v1', selectedWeek:'seguro_selectedWeek_v1', formation:'seguro_formation_v1', auth:'seguro_auth_v1' };
-
 export default function App(){
   const [activeTab, setActiveTab] = useState<'dashboard'|'players'|'trainings'|'callup'|'matches'|'results'|'standings'|'scorers'|'admin'>('dashboard');
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [trainings, setTrainings] = useState<TrainingWeek[]>([]);
-  const [selectedWeek, setSelectedWeek] = useState<number>(1);
-  const [callUpData, setCallUpData] = useState<CallUpData>(initialCallUp);
-  const [matches, setMatches] = useState<Match[]>(fixtures);
+  const [players, setPlayers] = useState<Player[]>(INITIAL_PLAYERS);
+  const [trainings, setTrainings] = useState<TrainingWeek[]>(INITIAL_TRAINING_WEEKS);
+  const [selectedWeek, setSelectedWeek] = useState<number>(INITIAL_SETTINGS.selectedWeek);
+  const [callUpData, setCallUpData] = useState<CallUpData>(INITIAL_CALLUP);
+  const [matches, setMatches] = useState<Match[]>(INITIAL_MATCHES);
   const [openMatchId, setOpenMatchId] = useState<number|null>(null);
-  const [formation, setFormation] = useState<FormationData>(initialFormation);
-  const [authData, setAuthData] = useState<AuthData>(initialAuthData);
+  const [formation, setFormation] = useState<FormationData>(INITIAL_FORMATION);
+  const [authData, setAuthData] = useState<AuthData>(INITIAL_AUTH_DATA);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [callupId, setCallupId] = useState<number | null>(null);
   const [formationId, setFormationId] = useState<number | null>(null);
@@ -157,7 +47,7 @@ export default function App(){
   useEffect(()=>{
     if (hasSeededRef.current) return; // Prevent double seeding in StrictMode
     hasSeededRef.current = true;
-    // Load all data from database
+    // Load all data from localStorage-backed API
     Promise.all([
       api.players.getAll(),
       api.trainings.getAll(),
@@ -167,27 +57,21 @@ export default function App(){
       api.settings.get(),
       api.auth.getUsers()
     ]).then(async ([playersData, trainingsData, matchesData, callupsData, formationData, settingsData, usersData]) => {
-      // Load players from database (no auto-seeding)
-      setPlayers(playersData);
-      
-      // Load trainings from database (no auto-seeding)
-      setTrainings(trainingsData);
-      if (settingsData) {
+      setPlayers(playersData.length ? playersData : INITIAL_PLAYERS);
+
+      setTrainings(trainingsData.length ? trainingsData : INITIAL_TRAINING_WEEKS);
+      if (settingsData && typeof settingsData.selectedWeek === 'number') {
         setSelectedWeek(settingsData.selectedWeek);
       } else if (trainingsData.length > 0 && trainingsData[0].id) {
         setSelectedWeek(trainingsData[0].id);
         await api.settings.update({ selectedWeek: trainingsData[0].id });
-      }
-      
-      // If no users in database, seed with initial admin user (first user is auto-admin)
-      if (usersData.length === 0) {
-        const adminUser = await api.auth.createUser('admin', 'admin2024', 'mattia.franchi89@gmail.com');
-        setAuthData(prev => ({ ...prev, users: [adminUser] }));
       } else {
-        setAuthData(prev => ({ ...prev, users: usersData }));
+        setSelectedWeek(INITIAL_SETTINGS.selectedWeek);
       }
-      
-      if (matchesData.length > 0) setMatches(matchesData);
+
+      setAuthData(prev => ({ ...prev, users: usersData }));
+
+      setMatches(matchesData.length ? matchesData : INITIAL_MATCHES);
       if (callupsData.length > 0 && callupsData[0]) {
         const callupFromDb = callupsData[0];
         setCallUpData({
@@ -200,18 +84,24 @@ export default function App(){
           selectedPlayers: Array.isArray(callupFromDb.selectedPlayers) ? callupFromDb.selectedPlayers : []
         });
         setCallupId(callupFromDb.id);
+      } else {
+        setCallUpData(INITIAL_CALLUP);
+        setCallupId(null);
       }
+
       if (formationData) {
         setFormation(formationData);
-        setFormationId(formationData.id);
+        setFormationId(formationData.id ?? null);
+      } else {
+        setFormation(INITIAL_FORMATION);
+        setFormationId(INITIAL_FORMATION.id ?? null);
       }
-      if (settingsData) setSelectedWeek(settingsData.selectedWeek);
+
       setDataLoaded(true);
     }).catch(err => console.error('Failed to load data:', err));
   },[]);
-  // All data now stored in database, no localStorage needed
   
-  // Auto-save callUpData to database when it changes (only after initial load)
+  // Auto-save callUpData to storage when it changes (only after initial load)
   useEffect(() => {
     if (!dataLoaded) return; // Wait until initial data is loaded
     
@@ -226,7 +116,7 @@ export default function App(){
     saveCallup().catch(err => console.error('Failed to save callup:', err));
   }, [callUpData, dataLoaded]); // Removed callupId from dependencies to prevent infinite loop
   
-  // Auto-save formation to database when it changes (only after initial load)
+  // Auto-save formation to storage when it changes (only after initial load)
   useEffect(() => {
     if (!dataLoaded) return; // Wait until initial data is loaded
     
@@ -242,81 +132,13 @@ export default function App(){
   }, [formation, dataLoaded]); // Removed formationId from dependencies to prevent infinite loop
 
   useEffect(() => {
-    if (players.length === 0) return;
-    
-    const goalsByPlayer: Record<number, number> = {};
-    matches.forEach(match => {
-      if (match.events) {
-        match.events.forEach(event => {
-          if (event.type === 'GOAL' && event.team === 'SEGURO' && (event as any).playerId) {
-            const playerId = (event as any).playerId;
-            goalsByPlayer[playerId] = (goalsByPlayer[playerId] || 0) + 1;
-          }
-        });
-      }
-    });
-    
-    // Update players with new goal counts and save to database
-    const updatePlayerGoals = async () => {
-      const updatedPlayers = players.map(player => ({
-        ...player,
-        goals: goalsByPlayer[player.id] || 0
-      }));
-      
-      // Update each player in database
-      for (const player of updatedPlayers) {
-        if (players.find(p => p.id === player.id)?.goals !== player.goals) {
-          await api.players.update(player.id, { goals: player.goals });
-        }
-      }
-      
-      setPlayers(updatedPlayers);
-    };
-    
-    updatePlayerGoals().catch(err => console.error('Failed to update player goals:', err));
-  }, [matches, players.length]);
+    if (!dataLoaded) return;
 
-  useEffect(() => {
-    if (players.length === 0) return;
-    
-    const yellowCardsByPlayer: Record<number, number> = {};
-    const redCardsByPlayer: Record<number, number> = {};
-    matches.forEach(match => {
-      if (match.events) {
-        match.events.forEach(event => {
-          if ((event.type === 'YELLOW' || event.type === 'RED') && event.team === 'SEGURO' && (event as any).playerId) {
-            const playerId = (event as any).playerId;
-            if (event.type === 'YELLOW') {
-              yellowCardsByPlayer[playerId] = (yellowCardsByPlayer[playerId] || 0) + 1;
-            } else if (event.type === 'RED') {
-              redCardsByPlayer[playerId] = (redCardsByPlayer[playerId] || 0) + 1;
-            }
-          }
-        });
-      }
-    });
-    
-    // Update players with new card counts and save to database
-    const updatePlayerCards = async () => {
-      const updatedPlayers = players.map(player => ({
-        ...player,
-        yellowCards: yellowCardsByPlayer[player.id] || 0,
-        redCards: redCardsByPlayer[player.id] || 0
-      }));
-      
-      // Update each player in database
-      for (const player of updatedPlayers) {
-        const currentPlayer = players.find(p => p.id === player.id);
-        if (currentPlayer?.yellowCards !== player.yellowCards || currentPlayer?.redCards !== player.redCards) {
-          await api.players.update(player.id, { yellowCards: player.yellowCards, redCards: player.redCards });
-        }
-      }
-      
-      setPlayers(updatedPlayers);
-    };
-    
-    updatePlayerCards().catch(err => console.error('Failed to update player cards:', err));
-  }, [matches, players.length]);
+    api.players
+      .getAll()
+      .then((synced) => setPlayers(synced))
+      .catch((err) => console.error('Failed to synchronise player stats:', err));
+  }, [matches, dataLoaded]);
 
   const totalGoals = useMemo(()=>players.reduce((s,p)=>s+p.goals,0),[players]);
   const playedMatches = useMemo(()=>matches.filter(m=>!!m.result).length,[matches]);
@@ -448,8 +270,18 @@ export default function App(){
   const handleLogin = async (username: string, password: string): Promise<boolean> => {
     try {
       const response = await api.auth.login(username, password);
-      if (response.success) {
-        setAuthData(prev => ({ ...prev, currentUser: response.user }));
+      if (response.success && response.user) {
+        let usersList = authData.users;
+        try {
+          const fetchedUsers = await api.auth.getUsers();
+          if (Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
+            usersList = fetchedUsers;
+          }
+        } catch (fetchError) {
+          console.warn('Unable to refresh users after login:', fetchError);
+        }
+
+        setAuthData(prev => ({ ...prev, currentUser: { ...response.user }, users: usersList }));
         return true;
       }
       return false;
@@ -491,35 +323,37 @@ export default function App(){
     }
   };
 
-  const resetLocalData = async()=>{ 
-    if (!confirm('Sei sicuro di voler cancellare tutti i dati e tornare allo stato iniziale?')) return;
-    
+  const resetLocalData = async()=>{
+    if (!confirm('Sei sicuro di voler cancellare tutti i dati locali e tornare allo stato iniziale?')) return;
+
     try {
-      // Delete all data from database
-      const [playersData, trainingsData, matchesData, callupsData] = await Promise.all([
-        api.players.getAll(),
-        api.trainings.getAll(),
-        api.matches.getAll(),
-        api.callups.getAll()
-      ]);
-      
-      await Promise.all([
-        ...playersData.map((p: any) => api.players.delete(p.id)),
-        ...trainingsData.map((t: any) => api.trainings.update(t.id, { sessions: [] })),
-        ...matchesData.map((m: any) => api.matches.update(m.id, { result: null, events: [] })),
-        ...callupsData.map((c: any) => api.callups.update(c.id, { selectedPlayers: [] }))
-      ]);
-      
-      // Reset to initial state
-      setPlayers([]);
-      setTrainings([]);
-      setSelectedWeek(1);
-      setMatches(fixtures);
-      setCallUpData(initialCallUp);
-      setFormation(initialFormation);
+      const state = await api.utils.resetAll();
+      setPlayers(state.players);
+      setTrainings(state.trainings);
+      setMatches(state.matches);
+      setSelectedWeek(state.settings.selectedWeek);
+
+      const primaryCallup = state.callups?.[0];
+      if (primaryCallup) {
+        setCallUpData({
+          opponent: primaryCallup.opponent,
+          date: primaryCallup.date,
+          meetingTime: primaryCallup.meetingTime,
+          kickoffTime: primaryCallup.kickoffTime,
+          location: primaryCallup.location,
+          isHome: primaryCallup.isHome,
+          selectedPlayers: Array.isArray(primaryCallup.selectedPlayers) ? primaryCallup.selectedPlayers : [],
+        });
+        setCallupId(primaryCallup.id);
+      } else {
+        setCallUpData(INITIAL_CALLUP);
+        setCallupId(null);
+      }
+
+      setFormation(state.formation);
+      setFormationId(state.formation.id ?? null);
       setOpenMatchId(null);
-      
-      await api.settings.update({ selectedWeek: 1 });
+      setAuthData({ currentUser: null, users: state.users });
     } catch (err) {
       console.error('Failed to reset data:', err);
       alert('Errore durante il reset dei dati');
@@ -549,9 +383,14 @@ Calzettoni blu`; window.open(`https://wa.me/?text=${encodeURIComponent(m)}`,'_bl
   const updateMatch = async(matchId:number, updater:(m:Match)=>Match)=> {
     const match = matches.find(m => m.id === matchId);
     if (!match) return;
-    const updated = updater(match);
-    await api.matches.update(matchId, updated);
-    setMatches(prev=>prev.map(m=>m.id===matchId?updated:m));
+    const updatedDraft = updater(match);
+    try {
+      const { match: savedMatch, players: syncedPlayers } = await api.matches.update(matchId, updatedDraft);
+      setMatches(prev=>prev.map(m=>m.id===matchId?savedMatch:m));
+      setPlayers(syncedPlayers);
+    } catch (error) {
+      console.error('Failed to save match', error);
+    }
   };
   
   const changeSelectedWeek = async(weekId:number)=> {
@@ -573,7 +412,7 @@ Calzettoni blu`; window.open(`https://wa.me/?text=${encodeURIComponent(m)}`,'_bl
           <Target className="text-blue-600"/>
           <h1 className="text-xl font-bold">Seguro Calcio U19</h1>
           <span className="ml-auto text-sm text-gray-500">{authData.currentUser.email}</span>
-          <button className="ml-3 btn" onClick={resetLocalData}><RotateCcw size={16}/> Reset dati</button>
+          <button className="ml-3 btn" onClick={resetLocalData}><RotateCcw size={16}/> Reset dati locali</button>
           <button className="btn btn-ghost" onClick={handleLogout}><LogOut size={16}/> Esci</button>
         </div>
         <nav className="max-w-6xl mx-auto px-2 pb-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-2">
@@ -683,14 +522,6 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
 }
 
 function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggleAttendance, addNewWeek, getPlayerWeekStats, exportTrainingsCSV }:{ players:Player[]; trainings:TrainingWeek[]; selectedWeek:number; setSelectedWeek:(n:number)=>void; toggleAttendance:(playerId:number,sessionIndex:number)=>void; addNewWeek:()=>void; getPlayerWeekStats:(playerId:number)=>{present:number; total:number; percentage:number}; exportTrainingsCSV:()=>void }){
-  const week = trainings.find(w=>w.id===selectedWeek);
-  
-  const closeTraining = (sessionIndex: number) => {
-    if (confirm('Chiudere questo allenamento? Tutti i giocatori non selezionati saranno marcati come presenti.')) {
-      return;
-    }
-  };
-  
   const getWeekStats = (trainingWeek: TrainingWeek) => {
     const totalSessions = trainingWeek.sessions.length;
     const totalAbsences = trainingWeek.sessions.reduce((sum, s) => sum + Object.values(s.attendance).filter(a => a === true).length, 0);
@@ -698,6 +529,15 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
     const totalPresences = totalPossiblePresences - totalAbsences;
     const percentage = totalPossiblePresences > 0 ? Math.round((totalPresences / totalPossiblePresences) * 100) : 0;
     return { totalPresences, totalAbsences, percentage };
+  };
+
+  const week = trainings.find(w=>w.id===selectedWeek);
+  const selectedWeekStats = week ? getWeekStats(week) : null;
+
+  const closeTraining = (sessionIndex: number) => {
+    if (confirm('Chiudere questo allenamento? Tutti i giocatori non selezionati saranno marcati come presenti.')) {
+      return;
+    }
   };
   
   return (<section className="space-y-4">
@@ -714,39 +554,47 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
         <p className="text-sm text-gray-400">Clicca su "Nuova Settimana" per iniziare</p>
       </div>
     )}
-    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {trainings.map(t => {
-        const stats = getWeekStats(t);
-        const isSelected = t.id === selectedWeek;
-        return (
-          <div 
-            key={t.id} 
-            className={`card cursor-pointer transition ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'}`}
-            onClick={() => setSelectedWeek(t.id)}
-          >
-            <div className="text-xs text-gray-500">Settimana {t.weekNumber}</div>
-            <h3 className="font-semibold mt-1">{t.weekLabel}</h3>
-            <div className="mt-1 text-sm text-gray-600">
-              {t.sessions.map((s, idx) => (
-                <div key={idx}>{s.day} {itDate(s.date, {day: '2-digit', month: '2-digit'})}</div>
-              ))}
-            </div>
-            <div className="mt-2 flex items-center justify-between">
-              <div className="text-sm">
-                <span className="text-green-700 font-semibold">{stats.totalPresences} Presenze</span>
-                <span className="text-gray-500 mx-1">•</span>
-                <span className="text-red-700 font-semibold">{stats.totalAbsences} Assenze</span>
-              </div>
-            </div>
-            <div className="mt-1 text-sm text-gray-600">{stats.percentage}% Presenza Media</div>
-            {isSelected && <div className="mt-2 text-blue-600 text-sm font-medium">✓ Selezionata</div>}
-          </div>
-        );
-      })}
-    </div>
+    {trainings.length > 0 && (
+      <div className="card p-4">
+        <label htmlFor="trainingWeekSelect" className="block text-sm font-medium text-gray-600 mb-2">
+          Seleziona settimana di allenamento
+        </label>
+        <select
+          id="trainingWeekSelect"
+          className="select select-bordered w-full"
+          value={trainings.some(t => t.id === selectedWeek) ? selectedWeek : ''}
+          onChange={(event) => {
+            const newId = Number(event.target.value);
+            if (!Number.isNaN(newId)) {
+              setSelectedWeek(newId);
+            }
+          }}
+        >
+          <option value="" disabled>-- Scegli una settimana --</option>
+          {trainings.map((t) => {
+            const stats = getWeekStats(t);
+            return (
+              <option key={t.id ?? t.weekNumber} value={t.id ?? ''}>
+                {t.weekLabel} · {stats.totalPresences} presenze / {stats.totalAbsences} assenze ({stats.percentage}%)
+              </option>
+            );
+          })}
+        </select>
+      </div>
+    )}
 
     {week && (<>
       <h2 className="text-lg font-semibold mt-6">Dettagli Settimana: {week.weekLabel}</h2>
+      {selectedWeekStats && (
+        <div className="card mb-4">
+          <h3 className="font-semibold mb-1">📊 Riepilogo partecipazione</h3>
+          <div className="text-sm text-gray-700 space-y-1">
+            <div><span className="font-semibold text-green-700">{selectedWeekStats.totalPresences}</span> presenze totali</div>
+            <div><span className="font-semibold text-red-700">{selectedWeekStats.totalAbsences}</span> assenze totali</div>
+            <div><span className="font-semibold">{selectedWeekStats.percentage}%</span> presenza media</div>
+          </div>
+        </div>
+      )}
       {week.sessions.map((s,idx)=>(
       <div key={idx} className="card">
         <div className="flex items-center justify-between mb-3">
@@ -1174,6 +1022,9 @@ function LoginPage({ onLogin }: { onLogin: (username: string, password: string) 
     setError('');
     setSuccess('');
 
+    const trimmedUsername = username.trim();
+    const trimmedEmail = email.trim();
+
     if (password !== confirmPassword) {
       setError('Le password non coincidono');
       return;
@@ -1185,18 +1036,7 @@ function LoginPage({ onLogin }: { onLogin: (username: string, password: string) 
     }
 
     try {
-      const response = await fetch('/api/auth/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, email })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Errore sconosciuto' }));
-        setError(errorData.error || 'Errore durante la registrazione. Username potrebbe essere già in uso.');
-        return;
-      }
-
+      await api.auth.createUser(trimmedUsername, password, trimmedEmail);
       setSuccess('Registrazione completata! Ora puoi accedere.');
       setPassword('');
       setConfirmPassword('');
@@ -1207,7 +1047,11 @@ function LoginPage({ onLogin }: { onLogin: (username: string, password: string) 
         setEmail('');
       }, 2000);
     } catch (err) {
-      setError('Errore di connessione. Riprova più tardi.');
+      if (err instanceof Error) {
+        setError(err.message || 'Errore durante la registrazione.');
+      } else {
+        setError('Errore durante la registrazione. Username potrebbe essere già in uso.');
+      }
     }
   };
 
