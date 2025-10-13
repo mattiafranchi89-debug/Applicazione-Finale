@@ -522,14 +522,6 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
 }
 
 function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggleAttendance, addNewWeek, getPlayerWeekStats, exportTrainingsCSV }:{ players:Player[]; trainings:TrainingWeek[]; selectedWeek:number; setSelectedWeek:(n:number)=>void; toggleAttendance:(playerId:number,sessionIndex:number)=>void; addNewWeek:()=>void; getPlayerWeekStats:(playerId:number)=>{present:number; total:number; percentage:number}; exportTrainingsCSV:()=>void }){
-  const week = trainings.find(w=>w.id===selectedWeek);
-  
-  const closeTraining = (sessionIndex: number) => {
-    if (confirm('Chiudere questo allenamento? Tutti i giocatori non selezionati saranno marcati come presenti.')) {
-      return;
-    }
-  };
-  
   const getWeekStats = (trainingWeek: TrainingWeek) => {
     const totalSessions = trainingWeek.sessions.length;
     const totalAbsences = trainingWeek.sessions.reduce((sum, s) => sum + Object.values(s.attendance).filter(a => a === true).length, 0);
@@ -537,6 +529,15 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
     const totalPresences = totalPossiblePresences - totalAbsences;
     const percentage = totalPossiblePresences > 0 ? Math.round((totalPresences / totalPossiblePresences) * 100) : 0;
     return { totalPresences, totalAbsences, percentage };
+  };
+
+  const week = trainings.find(w=>w.id===selectedWeek);
+  const selectedWeekStats = week ? getWeekStats(week) : null;
+
+  const closeTraining = (sessionIndex: number) => {
+    if (confirm('Chiudere questo allenamento? Tutti i giocatori non selezionati saranno marcati come presenti.')) {
+      return;
+    }
   };
   
   return (<section className="space-y-4">
@@ -553,39 +554,47 @@ function TrainingsTab({ players, trainings, selectedWeek, setSelectedWeek, toggl
         <p className="text-sm text-gray-400">Clicca su "Nuova Settimana" per iniziare</p>
       </div>
     )}
-    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {trainings.map(t => {
-        const stats = getWeekStats(t);
-        const isSelected = t.id === selectedWeek;
-        return (
-          <div 
-            key={t.id} 
-            className={`card cursor-pointer transition ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'}`}
-            onClick={() => setSelectedWeek(t.id)}
-          >
-            <div className="text-xs text-gray-500">Settimana {t.weekNumber}</div>
-            <h3 className="font-semibold mt-1">{t.weekLabel}</h3>
-            <div className="mt-1 text-sm text-gray-600">
-              {t.sessions.map((s, idx) => (
-                <div key={idx}>{s.day} {itDate(s.date, {day: '2-digit', month: '2-digit'})}</div>
-              ))}
-            </div>
-            <div className="mt-2 flex items-center justify-between">
-              <div className="text-sm">
-                <span className="text-green-700 font-semibold">{stats.totalPresences} Presenze</span>
-                <span className="text-gray-500 mx-1">•</span>
-                <span className="text-red-700 font-semibold">{stats.totalAbsences} Assenze</span>
-              </div>
-            </div>
-            <div className="mt-1 text-sm text-gray-600">{stats.percentage}% Presenza Media</div>
-            {isSelected && <div className="mt-2 text-blue-600 text-sm font-medium">✓ Selezionata</div>}
-          </div>
-        );
-      })}
-    </div>
+    {trainings.length > 0 && (
+      <div className="card p-4">
+        <label htmlFor="trainingWeekSelect" className="block text-sm font-medium text-gray-600 mb-2">
+          Seleziona settimana di allenamento
+        </label>
+        <select
+          id="trainingWeekSelect"
+          className="select select-bordered w-full"
+          value={trainings.some(t => t.id === selectedWeek) ? selectedWeek : ''}
+          onChange={(event) => {
+            const newId = Number(event.target.value);
+            if (!Number.isNaN(newId)) {
+              setSelectedWeek(newId);
+            }
+          }}
+        >
+          <option value="" disabled>-- Scegli una settimana --</option>
+          {trainings.map((t) => {
+            const stats = getWeekStats(t);
+            return (
+              <option key={t.id ?? t.weekNumber} value={t.id ?? ''}>
+                {t.weekLabel} · {stats.totalPresences} presenze / {stats.totalAbsences} assenze ({stats.percentage}%)
+              </option>
+            );
+          })}
+        </select>
+      </div>
+    )}
 
     {week && (<>
       <h2 className="text-lg font-semibold mt-6">Dettagli Settimana: {week.weekLabel}</h2>
+      {selectedWeekStats && (
+        <div className="card mb-4">
+          <h3 className="font-semibold mb-1">📊 Riepilogo partecipazione</h3>
+          <div className="text-sm text-gray-700 space-y-1">
+            <div><span className="font-semibold text-green-700">{selectedWeekStats.totalPresences}</span> presenze totali</div>
+            <div><span className="font-semibold text-red-700">{selectedWeekStats.totalAbsences}</span> assenze totali</div>
+            <div><span className="font-semibold">{selectedWeekStats.percentage}%</span> presenza media</div>
+          </div>
+        </div>
+      )}
       {week.sessions.map((s,idx)=>(
       <div key={idx} className="card">
         <div className="flex items-center justify-between mb-3">
