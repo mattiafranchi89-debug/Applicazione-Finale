@@ -350,8 +350,13 @@ export default function App(){
         setCallupId(null);
       }
 
-      setFormation(state.formation);
-      setFormationId(state.formation.id ?? null);
+      if (state.formation) {
+        setFormation(state.formation);
+        setFormationId(state.formation.id ?? null);
+      } else {
+        setFormation(INITIAL_FORMATION);
+        setFormationId(INITIAL_FORMATION.id ?? null);
+      }
       setOpenMatchId(null);
       setAuthData({ currentUser: null, users: state.users });
     } catch (err) {
