@@ -33,13 +33,16 @@ export const trainings = pgTable('trainings', {
 
 export const matches = pgTable('matches', {
   id: serial('id').primaryKey(),
+  round: integer('round').notNull(),
   date: text('date').notNull(),
   time: text('time').notNull(),
-  location: text('location').notNull(),
-  opponent: text('opponent').notNull(),
-  homeAway: text('home_away').notNull(),
+  home: text('home').notNull(),
+  away: text('away').notNull(),
+  address: text('address').notNull().default(''),
+  city: text('city').notNull().default(''),
   result: text('result'),
   events: jsonb('events'), // Array di eventi
+  minutes: jsonb('minutes'), // Mappa {playerId: minuti}
   createdAt: timestamp('created_at').defaultNow()
 });
 

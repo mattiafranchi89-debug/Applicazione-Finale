@@ -1,0 +1,109 @@
+export const INITIAL_PLAYERS = [] as const;
+
+export const INITIAL_MATCHES = [
+  { id: 1, round: 1, date: '2025-09-20', time: '18:00', home: 'Vighignolo', away: 'Seguro', address: 'Via Pace S.N.C.', city: 'Settimo Milanese Fr. Vighignolo', result: '4-3', events: [], minutes: {} },
+  { id: 2, round: 2, date: '2025-09-27', time: '14:45', home: 'Seguro', away: 'Villapizzone', address: 'Via Sandro Pertini 13', city: 'Seguro', result: '1-1', events: [], minutes: {} },
+  { id: 3, round: 3, date: '2025-10-04', time: '18:15', home: 'Sempione Half 1919', away: 'Seguro', address: 'Via Arturo Graf, 4', city: 'Milano', result: '1-1', events: [], minutes: {} },
+  { id: 4, round: 4, date: '2025-10-11', time: '14:45', home: 'Seguro', away: 'Polisportiva Or. Pa. S.', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [], minutes: {} },
+  { id: 5, round: 5, date: '2025-10-18', time: '17:30', home: 'Cassina Nuova', away: 'Seguro', address: 'Via Oglio, 1/3', city: 'Bollate Fraz. Cassina Nuova', events: [], minutes: {} },
+  { id: 6, round: 6, date: '2025-10-25', time: '14:45', home: 'Seguro', away: 'Cob 91', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [], minutes: {} },
+  { id: 7, round: 7, date: '2025-11-01', time: '17:30', home: 'Ardor Bollate', away: 'Seguro', address: 'Via Repubblica 6', city: 'Bollate', events: [], minutes: {} },
+  { id: 8, round: 8, date: '2025-11-08', time: '14:45', home: 'Garibaldina 1932', away: 'Seguro', address: 'Via Don Giovanni Minzoni 4', city: 'Milano', events: [], minutes: {} },
+  { id: 9, round: 9, date: '2025-11-15', time: '14:45', home: 'Seguro', away: 'Quinto Romano', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [], minutes: {} },
+  { id: 10, round: 10, date: '2025-11-22', time: '17:45', home: 'Pro Novate', away: 'Seguro', address: 'Via V. Torlani 6', city: 'Novate Milanese', events: [], minutes: {} },
+  { id: 11, round: 11, date: '2025-11-29', time: '14:45', home: 'Seguro', away: 'Calcio Bonola', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [], minutes: {} },
+  { id: 12, round: 12, date: '2025-12-06', time: '18:00', home: 'Bollatese', away: 'Seguro', address: 'Via Varalli n. 2', city: 'Bollate', events: [], minutes: {} },
+  { id: 13, round: 13, date: '2025-12-13', time: '14:45', home: 'Seguro', away: 'Vigor FC', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [], minutes: {} },
+  { id: 14, round: 14, date: '2026-01-17', time: '14:45', home: 'Seguro', away: 'Vighignolo', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [], minutes: {} },
+  { id: 15, round: 15, date: '2026-01-24', time: '18:15', home: 'Villapizzone', away: 'Seguro', address: 'Via Perin del Vaga 11', city: 'Milano', events: [], minutes: {} },
+  { id: 16, round: 16, date: '2026-01-31', time: '14:45', home: 'Seguro', away: 'Sempione Half 1919', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [], minutes: {} },
+  { id: 17, round: 17, date: '2026-02-07', time: '16:00', home: 'Polisportiva Or. Pa. S.', away: 'Seguro', address: 'Via Comasina 115', city: 'Milano', events: [], minutes: {} },
+  { id: 18, round: 18, date: '2026-02-14', time: '14:45', home: 'Seguro', away: 'Cassina Nuova', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [], minutes: {} },
+  { id: 19, round: 19, date: '2026-02-21', time: '18:00', home: 'Cob 91', away: 'Seguro', address: 'Via Fabio Filzi, 31', city: 'Cormano', events: [], minutes: {} },
+  { id: 20, round: 20, date: '2026-02-28', time: '14:45', home: 'Seguro', away: 'Ardor Bollate', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [], minutes: {} },
+  { id: 21, round: 21, date: '2026-03-07', time: '14:45', home: 'Seguro', away: 'Garibaldina 1932', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [], minutes: {} },
+  { id: 22, round: 22, date: '2026-03-14', time: '17:00', home: 'Quinto Romano', away: 'Seguro', address: 'Via Vittorio De Sica, 14', city: 'Quinto Romano', events: [], minutes: {} },
+  { id: 23, round: 23, date: '2026-03-21', time: '14:45', home: 'Seguro', away: 'Pro Novate', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [], minutes: {} },
+  { id: 24, round: 24, date: '2026-03-28', time: '18:00', home: 'Calcio Bonola', away: 'Seguro', address: 'Via Fichi, 1', city: 'Milano', events: [], minutes: {} },
+  { id: 25, round: 25, date: '2026-04-11', time: '14:45', home: 'Seguro', away: 'Bollatese', address: 'Via Sandro Pertini 13', city: 'Seguro', events: [], minutes: {} },
+  { id: 26, round: 26, date: '2026-04-18', time: '15:30', home: 'Vigor FC', away: 'Seguro', address: 'Via San Michele del Carso, 55', city: 'Paderno Dugnano', events: [], minutes: {} },
+] as const;
+
+const LEGACY_TRAINING_WEEKS = [
+  { id: 1, week: '01-07 September', sessions: [ { day: 'Lunedì', date: '2025-09-01', attendance: {} }, { day: 'Mercoledì', date: '2025-09-03', attendance: {} }, { day: 'Venerdì', date: '2025-09-05', attendance: {} } ] },
+  { id: 2, week: '08-14 September', sessions: [ { day: 'Lunedì', date: '2025-09-08', attendance: {} }, { day: 'Mercoledì', date: '2025-09-10', attendance: {} }, { day: 'Venerdì', date: '2025-09-12', attendance: {} } ] },
+  { id: 3, week: '15-21 September', sessions: [ { day: 'Lunedì', date: '2025-09-15', attendance: {} }, { day: 'Mercoledì', date: '2025-09-17', attendance: {} }, { day: 'Venerdì', date: '2025-09-19', attendance: {} } ] },
+  { id: 4, week: '22-28 September', sessions: [ { day: 'Lunedì', date: '2025-09-22', attendance: {} }, { day: 'Mercoledì', date: '2025-09-24', attendance: {} }, { day: 'Venerdì', date: '2025-09-26', attendance: {} } ] },
+  { id: 5, week: '29 Sep - 05 Oct', sessions: [ { day: 'Lunedì', date: '2025-09-29', attendance: {} }, { day: 'Mercoledì', date: '2025-10-01', attendance: {} }, { day: 'Venerdì', date: '2025-10-03', attendance: {} } ] },
+  { id: 6, week: '06-12 October', sessions: [ { day: 'Lunedì', date: '2025-10-06', attendance: {} }, { day: 'Mercoledì', date: '2025-10-08', attendance: {} }, { day: 'Venerdì', date: '2025-10-10', attendance: {} } ] },
+  { id: 7, week: '13-19 October', sessions: [ { day: 'Lunedì', date: '2025-10-13', attendance: {} }, { day: 'Mercoledì', date: '2025-10-15', attendance: {} }, { day: 'Venerdì', date: '2025-10-17', attendance: {} } ] },
+  { id: 8, week: '20-26 October', sessions: [ { day: 'Lunedì', date: '2025-10-20', attendance: {} }, { day: 'Mercoledì', date: '2025-10-22', attendance: {} }, { day: 'Venerdì', date: '2025-10-24', attendance: {} } ] },
+  { id: 9, week: '27 Oct - 02 Nov', sessions: [ { day: 'Lunedì', date: '2025-10-27', attendance: {} }, { day: 'Mercoledì', date: '2025-10-29', attendance: {} }, { day: 'Venerdì', date: '2025-10-31', attendance: {} } ] },
+  { id: 10, week: '03-09 November', sessions: [ { day: 'Lunedì', date: '2025-11-03', attendance: {} }, { day: 'Mercoledì', date: '2025-11-05', attendance: {} }, { day: 'Venerdì', date: '2025-11-07', attendance: {} } ] },
+  { id: 11, week: '10-16 November', sessions: [ { day: 'Lunedì', date: '2025-11-10', attendance: {} }, { day: 'Mercoledì', date: '2025-11-12', attendance: {} }, { day: 'Venerdì', date: '2025-11-14', attendance: {} } ] },
+  { id: 12, week: '17-23 November', sessions: [ { day: 'Lunedì', date: '2025-11-17', attendance: {} }, { day: 'Mercoledì', date: '2025-11-19', attendance: {} }, { day: 'Venerdì', date: '2025-11-21', attendance: {} } ] },
+  { id: 13, week: '24-30 November', sessions: [ { day: 'Lunedì', date: '2025-11-24', attendance: {} }, { day: 'Mercoledì', date: '2025-11-26', attendance: {} }, { day: 'Venerdì', date: '2025-11-28', attendance: {} } ] },
+  { id: 14, week: '01-07 December', sessions: [ { day: 'Lunedì', date: '2025-12-01', attendance: {} }, { day: 'Mercoledì', date: '2025-12-03', attendance: {} }, { day: 'Venerdì', date: '2025-12-05', attendance: {} } ] },
+  { id: 15, week: '08-14 December', sessions: [ { day: 'Lunedì', date: '2025-12-08', attendance: {} }, { day: 'Mercoledì', date: '2025-12-10', attendance: {} }, { day: 'Venerdì', date: '2025-12-12', attendance: {} } ] },
+  { id: 16, week: '15-21 December', sessions: [ { day: 'Lunedì', date: '2025-12-15', attendance: {} }, { day: 'Mercoledì', date: '2025-12-17', attendance: {} }, { day: 'Venerdì', date: '2025-12-19', attendance: {} } ] },
+  { id: 17, week: '22-28 December', sessions: [ { day: 'Lunedì', date: '2025-12-22', attendance: {} }, { day: 'Mercoledì', date: '2025-12-24', attendance: {} }, { day: 'Venerdì', date: '2025-12-26', attendance: {} } ] },
+  { id: 18, week: '29 Dec - 04 Jan', sessions: [ { day: 'Lunedì', date: '2025-12-29', attendance: {} }, { day: 'Mercoledì', date: '2025-12-31', attendance: {} }, { day: 'Venerdì', date: '2026-01-02', attendance: {} } ] },
+  { id: 19, week: '05-11 January', sessions: [ { day: 'Lunedì', date: '2026-01-05', attendance: {} }, { day: 'Mercoledì', date: '2026-01-07', attendance: {} }, { day: 'Venerdì', date: '2026-01-09', attendance: {} } ] },
+  { id: 20, week: '12-18 January', sessions: [ { day: 'Lunedì', date: '2026-01-12', attendance: {} }, { day: 'Mercoledì', date: '2026-01-14', attendance: {} }, { day: 'Venerdì', date: '2026-01-16', attendance: {} } ] },
+  { id: 21, week: '19-25 January', sessions: [ { day: 'Lunedì', date: '2026-01-19', attendance: {} }, { day: 'Mercoledì', date: '2026-01-21', attendance: {} }, { day: 'Venerdì', date: '2026-01-23', attendance: {} } ] },
+  { id: 22, week: '26 Jan - 01 Feb', sessions: [ { day: 'Lunedì', date: '2026-01-26', attendance: {} }, { day: 'Mercoledì', date: '2026-01-28', attendance: {} }, { day: 'Venerdì', date: '2026-01-30', attendance: {} } ] },
+  { id: 23, week: '02-08 February', sessions: [ { day: 'Lunedì', date: '2026-02-02', attendance: {} }, { day: 'Mercoledì', date: '2026-02-04', attendance: {} }, { day: 'Venerdì', date: '2026-02-06', attendance: {} } ] },
+  { id: 24, week: '09-15 February', sessions: [ { day: 'Lunedì', date: '2026-02-09', attendance: {} }, { day: 'Mercoledì', date: '2026-02-11', attendance: {} }, { day: 'Venerdì', date: '2026-02-13', attendance: {} } ] },
+  { id: 25, week: '16-22 February', sessions: [ { day: 'Lunedì', date: '2026-02-16', attendance: {} }, { day: 'Mercoledì', date: '2026-02-18', attendance: {} }, { day: 'Venerdì', date: '2026-02-20', attendance: {} } ] },
+  { id: 26, week: '23 Feb - 01 Mar', sessions: [ { day: 'Lunedì', date: '2026-02-23', attendance: {} }, { day: 'Mercoledì', date: '2026-02-25', attendance: {} }, { day: 'Venerdì', date: '2026-02-27', attendance: {} } ] },
+  { id: 27, week: '02-08 March', sessions: [ { day: 'Lunedì', date: '2026-03-02', attendance: {} }, { day: 'Mercoledì', date: '2026-03-04', attendance: {} }, { day: 'Venerdì', date: '2026-03-06', attendance: {} } ] },
+  { id: 28, week: '09-15 March', sessions: [ { day: 'Lunedì', date: '2026-03-09', attendance: {} }, { day: 'Mercoledì', date: '2026-03-11', attendance: {} }, { day: 'Venerdì', date: '2026-03-13', attendance: {} } ] },
+  { id: 29, week: '16-22 March', sessions: [ { day: 'Lunedì', date: '2026-03-16', attendance: {} }, { day: 'Mercoledì', date: '2026-03-18', attendance: {} }, { day: 'Venerdì', date: '2026-03-20', attendance: {} } ] },
+  { id: 30, week: '23-29 March', sessions: [ { day: 'Lunedì', date: '2026-03-23', attendance: {} }, { day: 'Mercoledì', date: '2026-03-25', attendance: {} }, { day: 'Venerdì', date: '2026-03-27', attendance: {} } ] },
+  { id: 31, week: '30 Mar - 05 Apr', sessions: [ { day: 'Lunedì', date: '2026-03-30', attendance: {} }, { day: 'Mercoledì', date: '2026-04-01', attendance: {} }, { day: 'Venerdì', date: '2026-04-03', attendance: {} } ] },
+  { id: 32, week: '06-12 April', sessions: [ { day: 'Lunedì', date: '2026-04-06', attendance: {} }, { day: 'Mercoledì', date: '2026-04-08', attendance: {} }, { day: 'Venerdì', date: '2026-04-10', attendance: {} } ] },
+  { id: 33, week: '13-19 April', sessions: [ { day: 'Lunedì', date: '2026-04-13', attendance: {} }, { day: 'Mercoledì', date: '2026-04-15', attendance: {} }, { day: 'Venerdì', date: '2026-04-17', attendance: {} } ] },
+  { id: 34, week: '20-26 April', sessions: [ { day: 'Lunedì', date: '2026-04-20', attendance: {} }, { day: 'Mercoledì', date: '2026-04-22', attendance: {} }, { day: 'Venerdì', date: '2026-04-24', attendance: {} } ] },
+  { id: 35, week: '27 Apr - 03 May', sessions: [ { day: 'Lunedì', date: '2026-04-27', attendance: {} }, { day: 'Mercoledì', date: '2026-04-29', attendance: {} }, { day: 'Venerdì', date: '2026-05-01', attendance: {} } ] },
+  { id: 36, week: '04-10 May', sessions: [ { day: 'Lunedì', date: '2026-05-04', attendance: {} }, { day: 'Mercoledì', date: '2026-05-06', attendance: {} }, { day: 'Venerdì', date: '2026-05-08', attendance: {} } ] },
+  { id: 37, week: '11-17 May', sessions: [ { day: 'Lunedì', date: '2026-05-11', attendance: {} }, { day: 'Mercoledì', date: '2026-05-13', attendance: {} }, { day: 'Venerdì', date: '2026-05-15', attendance: {} } ] },
+  { id: 38, week: '18-24 May', sessions: [ { day: 'Lunedì', date: '2026-05-18', attendance: {} }, { day: 'Mercoledì', date: '2026-05-20', attendance: {} }, { day: 'Venerdì', date: '2026-05-22', attendance: {} } ] },
+  { id: 39, week: '25-31 May', sessions: [ { day: 'Lunedì', date: '2026-05-25', attendance: {} }, { day: 'Mercoledì', date: '2026-05-27', attendance: {} }, { day: 'Venerdì', date: '2026-05-29', attendance: {} } ] },
+] as const;
+
+export const INITIAL_TRAINING_WEEKS = LEGACY_TRAINING_WEEKS.map((week, index) => ({
+  id: week.id,
+  weekNumber: index + 1,
+  weekLabel: week.week,
+  sessions: week.sessions,
+}));
+
+export const INITIAL_CALLUP = {
+  opponent: 'SEMPIONE HALF 1919',
+  date: '2025-10-12',
+  meetingTime: '16:45',
+  kickoffTime: '18:15',
+  location: 'Via Antonio Aldini 77, Milano (MI)',
+  isHome: false,
+  selectedPlayers: [] as number[],
+};
+
+export const INITIAL_FORMATION = {
+  id: 1,
+  module: '4-3-3',
+  positions: {} as Record<string, number | null>,
+  substitutes: [null, null, null, null, null, null, null, null, null] as (number | null)[],
+};
+
+export const INITIAL_AUTH_USERS = [
+  { username: 'admin', password: 'admin2024', email: 'mattia.franchi89@gmail.com', role: 'admin' as const },
+];
+
+export const INITIAL_AUTH_DATA = {
+  currentUser: null,
+  users: INITIAL_AUTH_USERS,
+};
+
+export const INITIAL_SETTINGS = {
+  selectedWeek: 1,
+};

@@ -1,4 +1,5 @@
 import {
+  INITIAL_AUTH_DATA,
   INITIAL_AUTH_USERS,
   INITIAL_CALLUP,
   INITIAL_FORMATION,
@@ -19,88 +20,72 @@ import type {
   TrainingWeek,
 } from './types';
 
-export const LS_KEYS = {
-  players: 'seguro_players_v1',
-  trainings: 'seguro_trainings_v1',
-  matches: 'seguro_matches_v1',
-  callups: 'seguro_callup_v1',
-  formation: 'seguro_formation_v1',
-  settings: 'seguro_settings_v1',
-  auth: 'seguro_auth_v1',
-};
-
-type StorageLike = {
-  getItem: (key: string) => string | null;
-  setItem: (key: string, value: string) => void;
-  removeItem: (key: string) => void;
-};
-
-const memoryStorage = new Map<string, string>();
-
-const getStorage = (): StorageLike => {
-  if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
-    return window.localStorage;
-  }
-  return {
-    getItem: (key: string) => memoryStorage.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      memoryStorage.set(key, value);
-    },
-    removeItem: (key: string) => {
-      memoryStorage.delete(key);
-    },
-  };
-};
-
-const read = <T>(key: string): T | null => {
-  const raw = getStorage().getItem(key);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as T;
-  } catch (error) {
-    console.warn('Failed to parse localStorage key', key, error);
-    return null;
-  }
-};
-
-const write = <T>(key: string, value: T) => {
-  getStorage().setItem(key, JSON.stringify(value));
-};
+const API_BASE =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE) ||
+  '/api';
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
-const ensurePlayers = (): Player[] => {
-  const stored = read<Player[]>(LS_KEYS.players);
-  if (stored && Array.isArray(stored)) return stored;
-  const seeded = clone(INITIAL_PLAYERS);
-  write(LS_KEYS.players, seeded);
-  return seeded;
+const buildUrl = (path: string) => `${API_BASE}${path}`;
+
+const request = async <T>(path: string, options: RequestInit = {}): Promise<T> => {
+  const headers = new Headers(options.headers);
+  if (options.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const response = await fetch(buildUrl(path), {
+    ...options,
+    headers,
+    credentials: options.credentials ?? 'same-origin',
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(
+      `API ${options.method ?? 'GET'} ${path} failed: ${response.status} ${response.statusText}${text ? ` - ${text}` : ''}`,
+    );
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    return (await response.json()) as T;
+  }
+
+  return undefined as T;
 };
 
-const ensureTrainings = (): TrainingWeek[] => {
-  const stored = read<TrainingWeek[]>(LS_KEYS.trainings);
-  if (stored && Array.isArray(stored)) return stored;
-  const seeded = clone(INITIAL_TRAINING_WEEKS);
-  write(LS_KEYS.trainings, seeded);
-  return seeded;
-};
+const normaliseMatch = (match: any): Match => ({
+  ...match,
+  events: Array.isArray(match?.events) ? match.events : [],
+  minutes: match?.minutes ? { ...match.minutes } : {},
+});
 
-const ensureMatches = (): Match[] => {
-  const stored = read<Match[]>(LS_KEYS.matches);
-  if (stored && Array.isArray(stored)) return stored;
-  const seeded = clone(INITIAL_MATCHES);
-  write(LS_KEYS.matches, seeded);
-  return seeded;
-};
+const normaliseCallup = (callup: any): CallUpRecord => ({
+  ...callup,
+  selectedPlayers: Array.isArray(callup?.selectedPlayers) ? callup.selectedPlayers : [],
+});
 
-const computePlayerStatsFromMatches = (players: Player[], matches: Match[]): Player[] => {
-  if (players.length === 0) return players.map((player) => ({ ...player }));
+const normaliseFormation = (formation: any): FormationRecord => ({
+  ...formation,
+  positions: formation?.positions ? { ...formation.positions } : {},
+  substitutes: Array.isArray(formation?.substitutes) ? [...formation.substitutes] : [null, null, null, null, null, null, null, null, null],
+});
+
+const computePlayerStatsFromMatches = (playersData: Player[], matchesData: Match[]): Player[] => {
+  if (playersData.length === 0) {
+    return playersData.map((player) => ({ ...player }));
+  }
 
   const goalsByPlayer = new Map<number, number>();
   const yellowsByPlayer = new Map<number, number>();
   const redsByPlayer = new Map<number, number>();
 
-  matches.forEach((match) => {
+  matchesData.forEach((match) => {
     if (!Array.isArray(match.events)) return;
 
     match.events.forEach((event) => {
@@ -118,332 +103,301 @@ const computePlayerStatsFromMatches = (players: Player[], matches: Match[]): Pla
     });
   });
 
-  return players.map((player) => ({
+  return playersData.map((player) => ({
     ...player,
-    goals: goalsByPlayer.get(player.id) ?? 0,
-    yellowCards: yellowsByPlayer.get(player.id) ?? 0,
-    redCards: redsByPlayer.get(player.id) ?? 0,
+    goals: goalsByPlayer.get(player.id) ?? player.goals ?? 0,
+    yellowCards: yellowsByPlayer.get(player.id) ?? player.yellowCards ?? 0,
+    redCards: redsByPlayer.get(player.id) ?? player.redCards ?? 0,
   }));
 };
 
-const syncPlayerStats = (): Player[] => {
-  const players = ensurePlayers();
-  if (players.length === 0) {
-    return players;
-  }
+const persistPlayerStatDiffs = async (current: Player[], computed: Player[]) => {
+  const currentById = new Map(current.map((player) => [player.id, player]));
+  const updates: Promise<unknown>[] = [];
 
-  const matches = ensureMatches();
-  const syncedPlayers = computePlayerStatsFromMatches(players, matches);
-  write(LS_KEYS.players, syncedPlayers);
-  return syncedPlayers;
-};
+  computed.forEach((player) => {
+    const baseline = currentById.get(player.id);
+    if (!baseline) return;
 
-const ensureCallups = (): CallUpRecord[] => {
-  const stored = read<CallUpRecord[]>(LS_KEYS.callups);
-  if (stored && Array.isArray(stored) && stored.length > 0) return stored;
-  const seeded: CallUpRecord[] = [{ id: 1, ...clone(INITIAL_CALLUP) }];
-  write(LS_KEYS.callups, seeded);
-  return seeded;
-};
-
-const ensureFormation = (): FormationRecord => {
-  const stored = read<FormationRecord | null>(LS_KEYS.formation);
-  if (stored && typeof stored === 'object') return stored;
-  const base: FormationData = clone(INITIAL_FORMATION);
-  const seeded: FormationRecord = {
-    id: base.id ?? 1,
-    module: base.module,
-    positions: base.positions ? { ...base.positions } : {},
-    substitutes: base.substitutes ? [...base.substitutes] : [null, null, null, null, null, null, null, null, null],
-  };
-  write(LS_KEYS.formation, seeded);
-  return seeded;
-};
-
-const ensureSettings = (): AppSettings => {
-  const stored = read<AppSettings>(LS_KEYS.settings);
-  if (stored && typeof stored === 'object') return stored;
-  const seeded = clone(INITIAL_SETTINGS);
-  write(LS_KEYS.settings, seeded);
-  return seeded;
-};
-
-const ensureAuthUsers = (): AuthUser[] => {
-  const stored = read<AuthUser[]>(LS_KEYS.auth);
-  if (stored && Array.isArray(stored) && stored.length > 0) {
-    const hasAdmin = stored.some((user) => user.username === 'admin');
-    if (!hasAdmin) {
-      const admin = INITIAL_AUTH_USERS[0];
-      stored.push({ ...admin });
-      write(LS_KEYS.auth, stored);
+    if (
+      baseline.goals !== player.goals ||
+      baseline.yellowCards !== player.yellowCards ||
+      baseline.redCards !== player.redCards
+    ) {
+      updates.push(
+        request<unknown>(`/players/${player.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            goals: player.goals,
+            yellowCards: player.yellowCards,
+            redCards: player.redCards,
+          }),
+        }),
+      );
     }
-    return stored;
+  });
+
+  if (updates.length > 0) {
+    await Promise.all(updates);
   }
-  const seeded = INITIAL_AUTH_USERS.map((user) => ({ ...user }));
-  write(LS_KEYS.auth, seeded);
-  return seeded;
 };
 
-const nextId = (items: { id: number }[]): number => {
-  return items.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+const fetchPlayersWithSyncedStats = async (): Promise<Player[]> => {
+  const [playersData, matchesDataRaw] = await Promise.all([
+    request<Player[]>('/players'),
+    request<Match[]>('/matches'),
+  ]);
+
+  const matchesData = matchesDataRaw.map(normaliseMatch);
+  const computed = computePlayerStatsFromMatches(playersData, matchesData);
+  await persistPlayerStatDiffs(playersData, computed);
+  return computed;
 };
 
-const sanitizeUsers = (users: AuthUser[]): AuthUser[] =>
-  users.map(({ password, ...rest }) => rest);
+const sanitizeMatchForRequest = (match: Partial<Match>): Partial<Match> => ({
+  round: match.round,
+  date: match.date,
+  time: match.time,
+  home: match.home,
+  away: match.away,
+  address: match.address ?? '',
+  city: match.city ?? '',
+  result: match.result ?? null,
+  events: Array.isArray(match.events) ? match.events : [],
+  minutes: match.minutes ?? {},
+});
 
-const resetAll = () => {
-  const storage = getStorage();
-  Object.values(LS_KEYS).forEach((key) => storage.removeItem(key));
-
-  const players = clone(INITIAL_PLAYERS);
-  const trainings = clone(INITIAL_TRAINING_WEEKS);
-  const matches = clone(INITIAL_MATCHES);
-  const callups: CallUpRecord[] = [{ id: 1, ...clone(INITIAL_CALLUP) }];
-  const formation: FormationRecord = {
-    id: INITIAL_FORMATION.id ?? 1,
-    module: INITIAL_FORMATION.module,
-    positions: INITIAL_FORMATION.positions ? { ...INITIAL_FORMATION.positions } : {},
-    substitutes: INITIAL_FORMATION.substitutes ? [...INITIAL_FORMATION.substitutes] : [null, null, null, null, null, null, null, null, null],
-  };
-  const settings = clone(INITIAL_SETTINGS);
-  const users = INITIAL_AUTH_USERS.map((user) => ({ ...user }));
-
-  write(LS_KEYS.players, players);
-  write(LS_KEYS.trainings, trainings);
-  write(LS_KEYS.matches, matches);
-  write(LS_KEYS.callups, callups);
-  write(LS_KEYS.formation, formation);
-  write(LS_KEYS.settings, settings);
-  write(LS_KEYS.auth, users);
-
-  const syncedPlayers = syncPlayerStats();
-
-  return {
-    players: clone(syncedPlayers),
-    trainings: clone(trainings),
-    matches: clone(matches),
-    callups: clone(callups),
-    callup: clone(callups[0]),
-    formation: clone(formation),
-    settings: clone(settings),
-    users: sanitizeUsers(users),
-  };
+const sanitizeCallupForRequest = (callup: Partial<CallUpData>): Partial<CallUpData> => {
+  const sanitized: Partial<CallUpData> = { ...callup };
+  if (callup.selectedPlayers !== undefined) {
+    sanitized.selectedPlayers = Array.isArray(callup.selectedPlayers)
+      ? [...callup.selectedPlayers]
+      : [];
+  }
+  return sanitized;
 };
+
+const sanitizeFormationForRequest = (formation: FormationData): FormationData => ({
+  module: formation.module,
+  positions: formation.positions ? { ...formation.positions } : {},
+  substitutes: formation.substitutes ? [...formation.substitutes] : [null, null, null, null, null, null, null, null, null],
+});
+
+const sanitizeUsers = (users: AuthUser[]): AuthUser[] => users.map(({ password, ...rest }) => rest);
 
 export const api = {
   players: {
-    getAll: async (): Promise<Player[]> => clone(syncPlayerStats()),
+    getAll: async (): Promise<Player[]> => {
+      try {
+        const synced = await fetchPlayersWithSyncedStats();
+        return clone(synced);
+      } catch (error) {
+        console.error('Failed to load players from API, falling back to initial data:', error);
+        return clone(INITIAL_PLAYERS);
+      }
+    },
     create: async (player: Partial<Player>): Promise<Player> => {
-      const players = ensurePlayers();
-      const newPlayer: Player = {
-        id: nextId(players),
-        firstName: player.firstName ?? '',
-        lastName: player.lastName ?? '',
-        number: player.number ?? (players.length > 0 ? Math.max(...players.map((p) => p.number)) + 1 : 1),
-        position: (player.position ?? 'Attaccante') as Player['position'],
-        goals: player.goals ?? 0,
-        presences: player.presences ?? 0,
-        birthYear: player.birthYear ?? 2007,
-        yellowCards: player.yellowCards ?? 0,
-        redCards: player.redCards ?? 0,
-      };
-      players.push(newPlayer);
-      write(LS_KEYS.players, players);
-      return clone(newPlayer);
+      const created = await request<Player>('/players', {
+        method: 'POST',
+        body: JSON.stringify(player),
+      });
+      return clone(created);
     },
     update: async (id: number, patch: Partial<Player>): Promise<Player> => {
-      const players = ensurePlayers();
-      const index = players.findIndex((p) => p.id === id);
-      if (index === -1) throw new Error('Player not found');
-      const updated: Player = { ...players[index], ...patch };
-      players[index] = updated;
-      write(LS_KEYS.players, players);
+      const updated = await request<Player>(`/players/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(patch),
+      });
       return clone(updated);
     },
     delete: async (id: number): Promise<void> => {
-      const players = ensurePlayers().filter((p) => p.id !== id);
-      write(LS_KEYS.players, players);
+      await request<void>(`/players/${id}`, { method: 'DELETE' });
     },
   },
   trainings: {
-    getAll: async (): Promise<TrainingWeek[]> => clone(ensureTrainings()),
+    getAll: async (): Promise<TrainingWeek[]> => {
+      try {
+        const trainings = await request<TrainingWeek[]>('/trainings');
+        return clone(trainings);
+      } catch (error) {
+        console.error('Failed to load trainings from API, falling back to initial data:', error);
+        return clone(INITIAL_TRAINING_WEEKS);
+      }
+    },
     create: async (training: Partial<TrainingWeek>): Promise<TrainingWeek> => {
-      const trainings = ensureTrainings();
-      const newWeek: TrainingWeek = {
-        id: nextId(trainings),
-        weekNumber: training.weekNumber ?? trainings.length + 1,
-        weekLabel: training.weekLabel ?? `Settimana ${trainings.length + 1}`,
-        sessions: training.sessions ? clone(training.sessions) : [],
-      };
-      trainings.push(newWeek);
-      write(LS_KEYS.trainings, trainings);
-      return clone(newWeek);
+      const created = await request<TrainingWeek>('/trainings', {
+        method: 'POST',
+        body: JSON.stringify(training),
+      });
+      return clone(created);
     },
     update: async (id: number, patch: Partial<TrainingWeek>): Promise<TrainingWeek> => {
-      const trainings = ensureTrainings();
-      const index = trainings.findIndex((t) => t.id === id);
-      if (index === -1) throw new Error('Training week not found');
-      const updated: TrainingWeek = {
-        ...trainings[index],
-        ...patch,
-        sessions: patch.sessions ? clone(patch.sessions) : trainings[index].sessions,
-      };
-      trainings[index] = updated;
-      write(LS_KEYS.trainings, trainings);
+      const updated = await request<TrainingWeek>(`/trainings/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(patch),
+      });
       return clone(updated);
     },
   },
   matches: {
-    getAll: async (): Promise<Match[]> => clone(ensureMatches()),
+    getAll: async (): Promise<Match[]> => {
+      try {
+        const matches = await request<Match[]>('/matches');
+        return matches.map((match) => clone(normaliseMatch(match)));
+      } catch (error) {
+        console.error('Failed to load matches from API, falling back to initial fixtures:', error);
+        return clone(INITIAL_MATCHES);
+      }
+    },
     create: async (match: Partial<Match>): Promise<{ match: Match; players: Player[] }> => {
-      const matches = ensureMatches();
-      const newMatch: Match = {
-        id: nextId(matches),
-        round: match.round ?? matches.length + 1,
-        date: match.date ?? new Date().toISOString().slice(0, 10),
-        time: match.time ?? '15:00',
-        home: match.home ?? 'Seguro',
-        away: match.away ?? 'Avversari',
-        address: match.address ?? '',
-        city: match.city ?? '',
-        result: match.result,
-        events: match.events ? clone(match.events) : [],
-        minutes: match.minutes ? { ...match.minutes } : {},
-      };
-      matches.push(newMatch);
-      write(LS_KEYS.matches, matches);
-      const updatedPlayers = syncPlayerStats();
-      return {
-        match: clone(newMatch),
-        players: clone(updatedPlayers),
-      };
+      const created = await request<Match>('/matches', {
+        method: 'POST',
+        body: JSON.stringify(sanitizeMatchForRequest(match)),
+      });
+      const syncedPlayers = await fetchPlayersWithSyncedStats();
+      return { match: clone(normaliseMatch(created)), players: clone(syncedPlayers) };
     },
     update: async (id: number, match: Partial<Match>): Promise<{ match: Match; players: Player[] }> => {
-      const matches = ensureMatches();
-      const index = matches.findIndex((m) => m.id === id);
-      if (index === -1) throw new Error('Match not found');
-      const updated: Match = {
-        ...matches[index],
-        ...match,
-        events: match.events ? clone(match.events) : matches[index].events,
-        minutes: match.minutes ? { ...match.minutes } : matches[index].minutes,
-      };
-      matches[index] = updated;
-      write(LS_KEYS.matches, matches);
-      const updatedPlayers = syncPlayerStats();
-      return {
-        match: clone(updated),
-        players: clone(updatedPlayers),
-      };
+      const updated = await request<Match>(`/matches/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(sanitizeMatchForRequest(match)),
+      });
+      const syncedPlayers = await fetchPlayersWithSyncedStats();
+      return { match: clone(normaliseMatch(updated)), players: clone(syncedPlayers) };
     },
   },
   callups: {
-    getAll: async (): Promise<CallUpRecord[]> => clone(ensureCallups()),
+    getAll: async (): Promise<CallUpRecord[]> => {
+      try {
+        const callups = await request<CallUpRecord[]>('/callups');
+        return callups.map((callup) => clone(normaliseCallup(callup)));
+      } catch (error) {
+        console.error('Failed to load callups from API, falling back to initial data:', error);
+        return [{ id: 1, ...clone(INITIAL_CALLUP) }];
+      }
+    },
     create: async (callup: CallUpData): Promise<CallUpRecord> => {
-      const callups = ensureCallups();
-      const newCallup: CallUpRecord = {
-        id: nextId(callups),
-        opponent: callup.opponent,
-        date: callup.date,
-        meetingTime: callup.meetingTime,
-        kickoffTime: callup.kickoffTime,
-        location: callup.location,
-        isHome: callup.isHome,
-        selectedPlayers: Array.isArray(callup.selectedPlayers) ? [...callup.selectedPlayers] : [],
-      };
-      callups.push(newCallup);
-      write(LS_KEYS.callups, callups);
-      return clone(newCallup);
+      const created = await request<CallUpRecord>('/callups', {
+        method: 'POST',
+        body: JSON.stringify(sanitizeCallupForRequest(callup)),
+      });
+      return clone(normaliseCallup(created));
     },
     update: async (id: number, callup: Partial<CallUpData>): Promise<CallUpRecord> => {
-      const callups = ensureCallups();
-      const index = callups.findIndex((c) => c.id === id);
-      if (index === -1) throw new Error('Callup not found');
-      const updated: CallUpRecord = {
-        ...callups[index],
-        ...callup,
-        selectedPlayers: callup.selectedPlayers ? [...callup.selectedPlayers] : callups[index].selectedPlayers,
-      };
-      callups[index] = updated;
-      write(LS_KEYS.callups, callups);
-      return clone(updated);
+      const updated = await request<CallUpRecord>(`/callups/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(sanitizeCallupForRequest(callup)),
+      });
+      return clone(normaliseCallup(updated));
     },
   },
   formations: {
-    getLatest: async (): Promise<FormationRecord | null> => clone(ensureFormation()),
+    getLatest: async (): Promise<FormationRecord | null> => {
+      try {
+        const latest = await request<FormationRecord | null>('/formations/latest');
+        return latest ? clone(normaliseFormation(latest)) : null;
+      } catch (error) {
+        console.error('Failed to load formation from API, falling back to initial data:', error);
+        return clone({ id: INITIAL_FORMATION.id ?? 1, ...INITIAL_FORMATION });
+      }
+    },
     create: async (formation: FormationData): Promise<FormationRecord> => {
-      const current = ensureFormation();
-      const newFormation: FormationRecord = {
-        id: current ? current.id + 1 : 1,
-        module: formation.module,
-        positions: formation.positions ? { ...formation.positions } : {},
-        substitutes: formation.substitutes ? [...formation.substitutes] : [null, null, null, null, null, null, null, null, null],
-      };
-      write(LS_KEYS.formation, newFormation);
-      return clone(newFormation);
+      const created = await request<FormationRecord>('/formations', {
+        method: 'POST',
+        body: JSON.stringify(sanitizeFormationForRequest(formation)),
+      });
+      return clone(normaliseFormation(created));
     },
     update: async (id: number, formation: FormationData): Promise<FormationRecord> => {
-      const current = ensureFormation();
-      if (current.id !== id) {
-        throw new Error('Formation not found');
-      }
-      const updated: FormationRecord = {
-        id,
-        module: formation.module,
-        positions: formation.positions ? { ...formation.positions } : current.positions,
-        substitutes: formation.substitutes ? [...formation.substitutes] : current.substitutes,
-      };
-      write(LS_KEYS.formation, updated);
-      return clone(updated);
+      const updated = await request<FormationRecord>(`/formations/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(sanitizeFormationForRequest(formation)),
+      });
+      return clone(normaliseFormation(updated));
     },
   },
   settings: {
-    get: async (): Promise<AppSettings> => clone(ensureSettings()),
+    get: async (): Promise<AppSettings> => {
+      try {
+        const settings = await request<AppSettings>('/settings');
+        return clone(settings);
+      } catch (error) {
+        console.error('Failed to load settings from API, falling back to initial settings:', error);
+        return clone(INITIAL_SETTINGS);
+      }
+    },
     update: async (settings: Partial<AppSettings>): Promise<AppSettings> => {
-      const current = ensureSettings();
-      const updated = { ...current, ...settings };
-      write(LS_KEYS.settings, updated);
+      const updated = await request<AppSettings>('/settings', {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      });
       return clone(updated);
     },
   },
   auth: {
     login: async (username: string, password: string) => {
-      const users = ensureAuthUsers();
-      const normalizedUsername = username.trim().toLowerCase();
-      const user = users.find((u) => u.username.trim().toLowerCase() === normalizedUsername);
-      if (user && user.password === password) {
-        const { password: _pw, ...rest } = user;
-        return { success: true, user: rest };
+      const response = await request<{ success: boolean; user?: AuthUser }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      });
+      if (response.success && response.user) {
+        return { success: true, user: response.user };
       }
       return { success: false };
     },
-    getUsers: async (): Promise<AuthUser[]> => sanitizeUsers(ensureAuthUsers()),
-    createUser: async (username: string, password: string, email: string): Promise<AuthUser> => {
-      const users = ensureAuthUsers();
-      const normalized = username.trim().toLowerCase();
-      if (users.some((u) => u.username.trim().toLowerCase() === normalized)) {
-        throw new Error('Nome utente già in uso.');
+    getUsers: async (): Promise<AuthUser[]> => {
+      try {
+        const users = await request<AuthUser[]>('/auth/users');
+        return sanitizeUsers(users);
+      } catch (error) {
+        console.error('Failed to load users from API, falling back to initial admin user:', error);
+        return INITIAL_AUTH_DATA.users;
       }
-      const newUser: AuthUser = { username: username.trim(), password, email: email.trim(), role: 'user' };
-      users.push(newUser);
-      write(LS_KEYS.auth, users);
-      const { password: _pw, ...rest } = newUser;
-      return rest;
+    },
+    createUser: async (username: string, password: string, email: string): Promise<AuthUser> => {
+      const created = await request<AuthUser>('/auth/users', {
+        method: 'POST',
+        body: JSON.stringify({ username, password, email }),
+      });
+      return created;
     },
     deleteUser: async (username: string): Promise<void> => {
-      const users = ensureAuthUsers();
-      const filtered = users.filter((u) => u.username !== username);
-      write(LS_KEYS.auth, filtered);
+      await request<void>(`/auth/users/${encodeURIComponent(username)}`, {
+        method: 'DELETE',
+      });
     },
     updatePassword: async (username: string, newPassword: string): Promise<void> => {
-      const users = ensureAuthUsers();
-      const index = users.findIndex((u) => u.username === username);
-      if (index === -1) throw new Error('User not found');
-      users[index] = { ...users[index], password: newPassword };
-      write(LS_KEYS.auth, users);
+      await request(`/auth/users/${encodeURIComponent(username)}/password`, {
+        method: 'PUT',
+        body: JSON.stringify({ newPassword }),
+      });
     },
   },
   utils: {
-    resetAll: async () => resetAll(),
+    resetAll: async () => {
+      const state = await request<{
+        players: Player[];
+        trainings: TrainingWeek[];
+        matches: Match[];
+        callups: CallUpRecord[];
+        callup: CallUpRecord | null;
+        formation: FormationRecord | null;
+        settings: AppSettings;
+        users: AuthUser[];
+      }>('/utils/reset', {
+        method: 'POST',
+      });
+
+      return {
+        players: clone(state.players ?? []),
+        trainings: clone(state.trainings ?? []),
+        matches: (state.matches ?? []).map((match) => clone(normaliseMatch(match))),
+        callups: (state.callups ?? []).map((callup) => clone(normaliseCallup(callup))),
+        callup: state.callup ? clone(normaliseCallup(state.callup)) : null,
+        formation: state.formation ? clone(normaliseFormation(state.formation)) : null,
+        settings: clone(state.settings ?? INITIAL_SETTINGS),
+        users: sanitizeUsers(state.users ?? INITIAL_AUTH_USERS),
+      };
+    },
   },
 };
