@@ -71,7 +71,7 @@ export type Match = {
   away: string;
   address: string;
   city: string;
-  result?: string;
+  result?: string | null;
   events: MatchEvent[];
   minutes?: Record<number, number>;
 };

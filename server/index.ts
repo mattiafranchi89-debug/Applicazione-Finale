@@ -7,6 +7,14 @@ import { db } from './db.js';
 import { users, players, trainings, matches, callups, formations, appSettings } from '../shared/schema.js';
 import { ensureAdminUser } from './admin.js';
 import { eq, desc, sql } from 'drizzle-orm';
+import {
+  INITIAL_CALLUP,
+  INITIAL_FORMATION,
+  INITIAL_MATCHES,
+  INITIAL_PLAYERS,
+  INITIAL_SETTINGS,
+  INITIAL_TRAINING_WEEKS,
+} from '../shared/initialData.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,6 +41,27 @@ ensureAdminUser({
 
 app.use(cors());
 app.use(express.json());
+
+const LEGACY_API_PREFIXES = [
+  '/auth',
+  '/players',
+  '/trainings',
+  '/matches',
+  '/callups',
+  '/formations',
+  '/settings',
+  '/utils',
+];
+
+app.use((req, _res, next) => {
+  if (!req.path.startsWith('/api/')) {
+    const matchedPrefix = LEGACY_API_PREFIXES.find((prefix) => req.path.startsWith(prefix));
+    if (matchedPrefix) {
+      req.url = `/api${req.url}`;
+    }
+  }
+  next();
+});
 
 // Helper to remove password from user object
 const sanitizeUser = (user: any) => {
@@ -121,6 +150,17 @@ const snakeToCamel = (obj: any) => {
   return camelObj;
 };
 
+const sanitizeMatchPayload = (payload: any) => {
+  if (!payload) return payload;
+  const { id, createdAt, updatedAt, ...rest } = payload;
+  return {
+    ...rest,
+    result: payload.result ?? null,
+    events: Array.isArray(payload.events) ? payload.events : [],
+    minutes: payload.minutes ?? {},
+  };
+};
+
 // Players API
 app.get('/api/players', async (req, res) => {
   const allPlayers = await db.select().from(players);
@@ -187,13 +227,17 @@ app.get('/api/matches', async (req, res) => {
 });
 
 app.post('/api/matches', async (req, res) => {
-  const [newMatch] = await db.insert(matches).values(req.body).returning();
+  const [newMatch] = await db
+    .insert(matches)
+    .values(sanitizeMatchPayload(req.body))
+    .returning();
   res.json(newMatch);
 });
 
 app.put('/api/matches/:id', async (req, res) => {
-  const [updated] = await db.update(matches)
-    .set(req.body)
+  const [updated] = await db
+    .update(matches)
+    .set(sanitizeMatchPayload(req.body))
     .where(eq(matches.id, parseInt(req.params.id)))
     .returning();
   res.json(updated);
@@ -264,6 +308,112 @@ app.put('/api/settings', async (req, res) => {
   } else {
     const [newSettings] = await db.insert(appSettings).values(req.body).returning();
     res.json(newSettings);
+  }
+});
+
+app.post('/api/utils/reset', async (req, res) => {
+  try {
+    const { callupRow, formationRow, settingsRow } = await db.transaction(async (tx) => {
+      await tx.delete(callups);
+      await tx.delete(formations);
+      await tx.delete(matches);
+      await tx.delete(trainings);
+      await tx.delete(players);
+      await tx.delete(appSettings);
+
+      await tx.execute(sql`ALTER SEQUENCE players_id_seq RESTART WITH 1`);
+      await tx.execute(sql`ALTER SEQUENCE trainings_id_seq RESTART WITH 1`);
+      await tx.execute(sql`ALTER SEQUENCE matches_id_seq RESTART WITH 1`);
+      await tx.execute(sql`ALTER SEQUENCE callups_id_seq RESTART WITH 1`);
+      await tx.execute(sql`ALTER SEQUENCE formations_id_seq RESTART WITH 1`);
+      await tx.execute(sql`ALTER SEQUENCE app_settings_id_seq RESTART WITH 1`);
+
+      if (INITIAL_PLAYERS.length > 0) {
+        await tx.insert(players).values(INITIAL_PLAYERS.map((player: any) => ({
+          ...player,
+          goals: player.goals ?? 0,
+          presences: player.presences ?? 0,
+          yellowCards: player.yellowCards ?? 0,
+          redCards: player.redCards ?? 0,
+        })));
+      }
+
+      for (const week of INITIAL_TRAINING_WEEKS) {
+        await tx.insert(trainings).values({
+          weekNumber: week.weekNumber,
+          weekLabel: week.weekLabel,
+          sessions: week.sessions,
+        });
+      }
+
+      for (const match of INITIAL_MATCHES) {
+        await tx.insert(matches).values({
+          round: match.round,
+          date: match.date,
+          time: match.time,
+          home: match.home,
+          away: match.away,
+          address: match.address ?? '',
+          city: match.city ?? '',
+          result: match.result ?? null,
+          events: Array.isArray(match.events) ? match.events : [],
+          minutes: match.minutes ?? {},
+        });
+      }
+
+      const [callupRow] = await tx
+        .insert(callups)
+        .values({
+          opponent: INITIAL_CALLUP.opponent,
+          date: INITIAL_CALLUP.date,
+          meetingTime: INITIAL_CALLUP.meetingTime,
+          kickoffTime: INITIAL_CALLUP.kickoffTime,
+          location: INITIAL_CALLUP.location,
+          isHome: INITIAL_CALLUP.isHome,
+          selectedPlayers: Array.isArray(INITIAL_CALLUP.selectedPlayers)
+            ? INITIAL_CALLUP.selectedPlayers
+            : [],
+        })
+        .returning();
+
+      const [formationRow] = await tx
+        .insert(formations)
+        .values({
+          module: INITIAL_FORMATION.module,
+          positions: INITIAL_FORMATION.positions ?? {},
+          substitutes: INITIAL_FORMATION.substitutes ?? [],
+        })
+        .returning();
+
+      const [settingsRow] = await tx
+        .insert(appSettings)
+        .values({ selectedWeek: INITIAL_SETTINGS.selectedWeek })
+        .returning();
+
+      return { callupRow, formationRow, settingsRow };
+    });
+
+    const playersData = await db.select().from(players);
+    const trainingsData = await db.select().from(trainings).orderBy(trainings.weekNumber);
+    const matchesData = await db.select().from(matches).orderBy(matches.round);
+    const callupsData = await db.select().from(callups);
+    const formationsData = await db.select().from(formations).orderBy(desc(formations.updatedAt));
+    const [settingsData] = await db.select().from(appSettings).limit(1);
+    const usersData = await db.select().from(users);
+
+    res.json({
+      players: playersData,
+      trainings: trainingsData,
+      matches: matchesData,
+      callups: callupsData,
+      callup: callupRow,
+      formation: formationsData[0] ?? formationRow,
+      settings: settingsData ?? settingsRow,
+      users: usersData.map(sanitizeUser).filter(Boolean),
+    });
+  } catch (error) {
+    console.error('Failed to reset data:', error);
+    res.status(500).json({ error: 'Failed to reset data' });
   }
 });
 
