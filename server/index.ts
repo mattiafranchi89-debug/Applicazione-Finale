@@ -42,6 +42,27 @@ ensureAdminUser({
 app.use(cors());
 app.use(express.json());
 
+const LEGACY_API_PREFIXES = [
+  '/auth',
+  '/players',
+  '/trainings',
+  '/matches',
+  '/callups',
+  '/formations',
+  '/settings',
+  '/utils',
+];
+
+app.use((req, _res, next) => {
+  if (!req.path.startsWith('/api/')) {
+    const matchedPrefix = LEGACY_API_PREFIXES.find((prefix) => req.path.startsWith(prefix));
+    if (matchedPrefix) {
+      req.url = `/api${req.url}`;
+    }
+  }
+  next();
+});
+
 // Helper to remove password from user object
 const sanitizeUser = (user: any) => {
   if (!user) return null;
