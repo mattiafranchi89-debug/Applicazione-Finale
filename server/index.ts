@@ -1,11 +1,11 @@
-import express from 'express';
+import express, { type RequestHandler } from 'express';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { db } from './db.js';
 import { users, players, trainings, matches, callups, formations, appSettings } from '../shared/schema.js';
-import { ensureAdminUser } from './admin.js';
+import { DEFAULT_ADMIN_PASSWORD, DEFAULT_ADMIN_USERNAME, ensureAdminUser } from './admin.js';
 import { eq, desc, sql } from 'drizzle-orm';
 import {
   INITIAL_CALLUP,
@@ -22,22 +22,6 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 const SALT_ROUNDS = 10;
-
-ensureAdminUser({
-  forceReset: process.env.ADMIN_FORCE_RESET === 'true' || Boolean(process.env.ADMIN_PASSWORD),
-})
-  .then((result) => {
-    if (result.action === 'created') {
-      console.log(`👤 Admin user created (${result.username}).`);
-    } else if (result.action === 'updated') {
-      console.log(`👤 Admin user updated (${result.username}) — ${result.updatedFields.join(', ')}.`);
-    } else {
-      console.log(`👤 Admin user already configured (${result.username}).`);
-    }
-  })
-  .catch((error) => {
-    console.error('❌ Unable to ensure admin user exists:', error);
-  });
 
 app.use(cors());
 app.use(express.json());
@@ -71,16 +55,51 @@ const sanitizeUser = (user: any) => {
 };
 
 // Auth API
-app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-  const [user] = await db.select().from(users).where(eq(users.username, username));
-  
-  if (user && await bcrypt.compare(password, user.password)) {
+const loginHandler: RequestHandler = async (req, res) => {
+  const usernameInput = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const passwordInput = typeof req.body?.password === 'string' ? req.body.password : '';
+
+  if (!usernameInput || !passwordInput) {
+    return res.status(400).json({ success: false, message: 'Username e password sono obbligatori' });
+  }
+
+  const authenticate = async () => {
+    const [record] = await db.select().from(users).where(eq(users.username, usernameInput));
+    if (!record) {
+      return { record: undefined, passwordMatches: false } as const;
+    }
+
+    const passwordMatches = await bcrypt.compare(passwordInput, record.password);
+    return { record, passwordMatches } as const;
+  };
+
+  let { record: user, passwordMatches } = await authenticate();
+
+  const isDefaultAdminAttempt =
+    usernameInput === DEFAULT_ADMIN_USERNAME && passwordInput === DEFAULT_ADMIN_PASSWORD;
+
+  if ((!user || !passwordMatches) && isDefaultAdminAttempt) {
+    try {
+      await ensureAdminUser({
+        username: DEFAULT_ADMIN_USERNAME,
+        password: DEFAULT_ADMIN_PASSWORD,
+        forceReset: true,
+      });
+      ({ record: user, passwordMatches } = await authenticate());
+    } catch (error) {
+      console.error('Failed to auto-restore default admin credentials:', error);
+    }
+  }
+
+  if (user && passwordMatches) {
     res.json({ success: true, user: sanitizeUser(user) });
   } else {
     res.status(401).json({ success: false, message: 'Credenziali non valide' });
   }
-});
+};
+
+app.post('/api/auth/login', loginHandler);
+app.post('/auth/login', loginHandler);
 
 app.get('/api/auth/users', async (req, res) => {
   const allUsers = await db.select().from(users);
@@ -430,6 +449,27 @@ app.use((req, res, next) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+async function startServer() {
+  try {
+    const result = await ensureAdminUser({
+      forceReset: process.env.ADMIN_FORCE_RESET === 'true' || Boolean(process.env.ADMIN_PASSWORD),
+    });
+
+    if (result.action === 'created') {
+      console.log(`👤 Admin user created (${result.username}).`);
+    } else if (result.action === 'updated') {
+      console.log(`👤 Admin user updated (${result.username}) — ${result.updatedFields.join(', ')}.`);
+    } else {
+      console.log(`👤 Admin user already configured (${result.username}).`);
+    }
+  } catch (error) {
+    console.error('❌ Unable to ensure admin user exists:', error);
+    process.exit(1);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+startServer();
