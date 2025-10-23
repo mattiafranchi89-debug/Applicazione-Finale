@@ -23,22 +23,6 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 const SALT_ROUNDS = 10;
 
-ensureAdminUser({
-  forceReset: process.env.ADMIN_FORCE_RESET === 'true' || Boolean(process.env.ADMIN_PASSWORD),
-})
-  .then((result) => {
-    if (result.action === 'created') {
-      console.log(`👤 Admin user created (${result.username}).`);
-    } else if (result.action === 'updated') {
-      console.log(`👤 Admin user updated (${result.username}) — ${result.updatedFields.join(', ')}.`);
-    } else {
-      console.log(`👤 Admin user already configured (${result.username}).`);
-    }
-  })
-  .catch((error) => {
-    console.error('❌ Unable to ensure admin user exists:', error);
-  });
-
 app.use(cors());
 app.use(express.json());
 
@@ -72,10 +56,16 @@ const sanitizeUser = (user: any) => {
 
 // Auth API
 app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-  const [user] = await db.select().from(users).where(eq(users.username, username));
-  
-  if (user && await bcrypt.compare(password, user.password)) {
+  const usernameInput = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const passwordInput = typeof req.body?.password === 'string' ? req.body.password : '';
+
+  if (!usernameInput || !passwordInput) {
+    return res.status(400).json({ success: false, message: 'Username e password sono obbligatori' });
+  }
+
+  const [user] = await db.select().from(users).where(eq(users.username, usernameInput));
+
+  if (user && await bcrypt.compare(passwordInput, user.password)) {
     res.json({ success: true, user: sanitizeUser(user) });
   } else {
     res.status(401).json({ success: false, message: 'Credenziali non valide' });
@@ -430,6 +420,27 @@ app.use((req, res, next) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+async function startServer() {
+  try {
+    const result = await ensureAdminUser({
+      forceReset: process.env.ADMIN_FORCE_RESET === 'true' || Boolean(process.env.ADMIN_PASSWORD),
+    });
+
+    if (result.action === 'created') {
+      console.log(`👤 Admin user created (${result.username}).`);
+    } else if (result.action === 'updated') {
+      console.log(`👤 Admin user updated (${result.username}) — ${result.updatedFields.join(', ')}.`);
+    } else {
+      console.log(`👤 Admin user already configured (${result.username}).`);
+    }
+  } catch (error) {
+    console.error('❌ Unable to ensure admin user exists:', error);
+    process.exit(1);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+startServer();
