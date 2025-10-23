@@ -1,15 +1,3 @@
-export type AuthUser = {
-  username: string;
-  password?: string;
-  email: string;
-  role: 'admin' | 'user';
-};
-
-export type AuthData = {
-  currentUser: AuthUser | null;
-  users: AuthUser[];
-};
-
 export type Player = {
   id: number;
   firstName: string;
