@@ -55,7 +55,7 @@ const sanitizeUser = (user: any) => {
 };
 
 // Auth API
-const loginHandler: RequestHandler = async (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const usernameInput = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
   const passwordInput = typeof req.body?.password === 'string' ? req.body.password : '';
 
@@ -63,35 +63,9 @@ const loginHandler: RequestHandler = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Username e password sono obbligatori' });
   }
 
-  const authenticate = async () => {
-    const [record] = await db.select().from(users).where(eq(users.username, usernameInput));
-    if (!record) {
-      return { record: undefined, passwordMatches: false } as const;
-    }
+  const [user] = await db.select().from(users).where(eq(users.username, usernameInput));
 
-    const passwordMatches = await bcrypt.compare(passwordInput, record.password);
-    return { record, passwordMatches } as const;
-  };
-
-  let { record: user, passwordMatches } = await authenticate();
-
-  const isDefaultAdminAttempt =
-    usernameInput === DEFAULT_ADMIN_USERNAME && passwordInput === DEFAULT_ADMIN_PASSWORD;
-
-  if ((!user || !passwordMatches) && isDefaultAdminAttempt) {
-    try {
-      await ensureAdminUser({
-        username: DEFAULT_ADMIN_USERNAME,
-        password: DEFAULT_ADMIN_PASSWORD,
-        forceReset: true,
-      });
-      ({ record: user, passwordMatches } = await authenticate());
-    } catch (error) {
-      console.error('Failed to auto-restore default admin credentials:', error);
-    }
-  }
-
-  if (user && passwordMatches) {
+  if (user && await bcrypt.compare(passwordInput, user.password)) {
     res.json({ success: true, user: sanitizeUser(user) });
   } else {
     res.status(401).json({ success: false, message: 'Credenziali non valide' });
