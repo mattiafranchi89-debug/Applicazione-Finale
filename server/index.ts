@@ -1,11 +1,9 @@
 import express from 'express';
 import cors from 'cors';
-import bcrypt from 'bcrypt';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { db } from './db.js';
-import { users, players, trainings, matches, callups, formations, appSettings } from '../shared/schema.js';
-import { ensureAdminUser } from './admin.js';
+import { players, trainings, matches, callups, formations, appSettings } from '../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
 import {
   INITIAL_CALLUP,
@@ -27,7 +25,6 @@ app.use(cors());
 app.use(express.json());
 
 const LEGACY_API_PREFIXES = [
-  '/auth',
   '/players',
   '/trainings',
   '/matches',
@@ -389,7 +386,6 @@ app.post('/api/utils/reset', async (req, res) => {
     const callupsData = await db.select().from(callups);
     const formationsData = await db.select().from(formations).orderBy(desc(formations.updatedAt));
     const [settingsData] = await db.select().from(appSettings).limit(1);
-    const usersData = await db.select().from(users);
 
     res.json({
       players: playersData,
@@ -399,7 +395,6 @@ app.post('/api/utils/reset', async (req, res) => {
       callup: callupRow,
       formation: formationsData[0] ?? formationRow,
       settings: settingsData ?? settingsRow,
-      users: usersData.map(sanitizeUser).filter(Boolean),
     });
   } catch (error) {
     console.error('Failed to reset data:', error);
