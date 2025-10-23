@@ -19,6 +19,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
+const SALT_ROUNDS = 10;
 
 app.use(cors());
 app.use(express.json());
@@ -41,6 +42,79 @@ app.use((req, _res, next) => {
     }
   }
   next();
+});
+
+// Helper to remove password from user object
+const sanitizeUser = (user: any) => {
+  if (!user) return null;
+  const { password, ...sanitized } = user;
+  return sanitized;
+};
+
+// Auth API
+app.post('/api/auth/login', async (req, res) => {
+  const usernameInput = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const passwordInput = typeof req.body?.password === 'string' ? req.body.password : '';
+
+  if (!usernameInput || !passwordInput) {
+    return res.status(400).json({ success: false, message: 'Username e password sono obbligatori' });
+  }
+
+  const [user] = await db.select().from(users).where(eq(users.username, usernameInput));
+
+  if (user && await bcrypt.compare(passwordInput, user.password)) {
+    res.json({ success: true, user: sanitizeUser(user) });
+  } else {
+    res.status(401).json({ success: false, message: 'Credenziali non valide' });
+  }
+});
+
+app.get('/api/auth/users', async (req, res) => {
+  const allUsers = await db.select().from(users);
+  res.json(allUsers.map(sanitizeUser));
+});
+
+app.post('/api/auth/users', async (req, res) => {
+  try {
+    const { username, password, email } = req.body;
+    
+    // Check if username already exists
+    const [existingUser] = await db.select().from(users).where(eq(users.username, username));
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username già in uso. Scegline un altro.' });
+    }
+    
+    // First user becomes admin, rest are 'user'
+    const allUsers = await db.select().from(users);
+    const role = allUsers.length === 0 ? 'admin' : 'user';
+    
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+    const [newUser] = await db.insert(users).values({ username, password: hashedPassword, email, role }).returning();
+    res.json(sanitizeUser(newUser));
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+app.delete('/api/auth/users/:username', async (req, res) => {
+  await db.delete(users).where(eq(users.username, req.params.username));
+  res.json({ success: true });
+});
+
+app.put('/api/auth/users/:username/password', async (req, res) => {
+  const { newPassword } = req.body;
+  const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  const [updated] = await db.update(users)
+    .set({ password: hashedPassword })
+    .where(eq(users.username, req.params.username))
+    .returning();
+  
+  if (!updated) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
+  res.json(sanitizeUser(updated));
 });
 
 // Helper to convert camelCase to snake_case for database
@@ -341,6 +415,27 @@ app.use((req, res, next) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+async function startServer() {
+  try {
+    const result = await ensureAdminUser({
+      forceReset: process.env.ADMIN_FORCE_RESET === 'true' || Boolean(process.env.ADMIN_PASSWORD),
+    });
+
+    if (result.action === 'created') {
+      console.log(`👤 Admin user created (${result.username}).`);
+    } else if (result.action === 'updated') {
+      console.log(`👤 Admin user updated (${result.username}) — ${result.updatedFields.join(', ')}.`);
+    } else {
+      console.log(`👤 Admin user already configured (${result.username}).`);
+    }
+  } catch (error) {
+    console.error('❌ Unable to ensure admin user exists:', error);
+    process.exit(1);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+startServer();

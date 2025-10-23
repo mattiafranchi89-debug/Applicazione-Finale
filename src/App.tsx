@@ -551,7 +551,8 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
 
       const existingKeys = new Set(players.map((p) => `${p.firstName.toLowerCase()}|${p.lastName.toLowerCase()}`));
       let nextNumber = players.length > 0 ? Math.max(...players.map((p) => p.number)) : 0;
-      const skippedRows: Array<{ row: number; reason: string }> = [];
+      const duplicateRows: number[] = [];
+      const invalidRows: number[] = [];
       const createdPlayers: Player[] = [];
 
       for (let i = 1; i < rows.length; i += 1) {
@@ -564,35 +565,20 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
         const roleValue = String(row[columnIndex.ruolo] ?? '').trim();
         const yearValue = String(row[columnIndex.anno] ?? '').trim();
 
-        const missingFields: string[] = [];
-        if (!firstName) missingFields.push('Nome');
-        if (!lastName) missingFields.push('Cognome');
-        if (!roleValue) missingFields.push('Ruolo');
-        if (!yearValue) missingFields.push('Anno');
-
-        if (missingFields.length > 0) {
-          skippedRows.push({
-            row: rowNumber,
-            reason: `Campi obbligatori mancanti: ${missingFields.join(', ')}.`,
-          });
+        if (!firstName || !lastName || !roleValue || !yearValue) {
+          invalidRows.push(rowNumber);
           continue;
         }
 
         const birthYear = Number.parseInt(yearValue, 10);
         if (!Number.isFinite(birthYear)) {
-          skippedRows.push({
-            row: rowNumber,
-            reason: `Anno non valido: "${yearValue}".`,
-          });
+          invalidRows.push(rowNumber);
           continue;
         }
 
         const key = `${firstName.toLowerCase()}|${lastName.toLowerCase()}`;
         if (existingKeys.has(key)) {
-          skippedRows.push({
-            row: rowNumber,
-            reason: `${firstName} ${lastName} è già presente nella rosa.`,
-          });
+          duplicateRows.push(rowNumber);
           continue;
         }
 
@@ -614,10 +600,7 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
           existingKeys.add(key);
         } catch (error) {
           console.error('Errore durante la creazione del giocatore importato:', error);
-          skippedRows.push({
-            row: rowNumber,
-            reason: 'Errore durante il salvataggio del giocatore. Riprova più tardi.',
-          });
+          invalidRows.push(rowNumber);
         }
       }
 
@@ -626,11 +609,11 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
       }
 
       const summary: string[] = [`Importati ${createdPlayers.length} giocatori.`];
-      if (skippedRows.length > 0) {
-        summary.push('Righe scartate:');
-        skippedRows.forEach(({ row, reason }) => {
-          summary.push(`- Riga ${row}: ${reason}`);
-        });
+      if (duplicateRows.length > 0) {
+        summary.push(`Ignorate ${duplicateRows.length} righe già presenti (righe: ${duplicateRows.join(', ')}).`);
+      }
+      if (invalidRows.length > 0) {
+        summary.push(`Scartate ${invalidRows.length} righe con dati mancanti o non validi (righe: ${invalidRows.join(', ')}).`);
       }
       alert(summary.join('\n'));
     } catch (error) {
