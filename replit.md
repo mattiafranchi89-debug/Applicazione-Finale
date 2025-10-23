@@ -21,22 +21,20 @@ The application is built with a React frontend using TypeScript and Vite, styled
 - **Data Export (CSV)**: Provides export functionality for comprehensive training attendance and player statistics.
 
 **Technical Implementations:**
-- **Full Cross-Device Synchronization**: All application data (users, players, trainings, matches, call-ups, formations, settings) is stored exclusively in a PostgreSQL database (Neon) with Drizzle ORM, ensuring no localStorage dependencies.
-- **Authentication**: Secure user authentication with bcrypt hashed passwords.
+- **Full Cross-Device Synchronization**: All application data (players, trainings, matches, call-ups, formations, settings) is stored exclusively in a PostgreSQL database (Neon) with Drizzle ORM, ensuring no localStorage dependencies.
 - **API Proxy**: Vite is configured to proxy `/api` requests to the Express backend.
-- **Database Seeding**: Scripts are available for seeding initial admin user and application data.
+- **Database Seeding**: Scripts are available for seeding core application data.
 - **Deployment Architecture**: Configured for Replit autoscale deployment, with the Express backend serving both API endpoints and static frontend files from a single unified server in production.
 
 **System Design Choices:**
 - **PostgreSQL Database Schema**: All application data is persisted in a PostgreSQL database (Neon). Key tables include:
-    - `users`: User authentication and authorization.
     - `players`: Player roster, performance tracking (position, goals, presences, yellowCards, redCards).
     - `trainings`: Weekly training attendance.
     - `matches`: Match fixtures, results, and events.
     - `callups`: Match call-up information including selected players, opponent, date, meetingTime, kickoffTime, and location.
     - `formations`: Tactical formation data including module and player positions.
     - `settings`: Application preferences.
-- **REST API Endpoints**: Complete CRUD operations are available for all data entities, accessible via `/api/users`, `/api/players`, `/api/trainings`, `/api/matches`, `/api/callups`, `/api/formations`, and `/api/settings`.
+- **REST API Endpoints**: Complete CRUD operations are available for all data entities, accessible via `/api/players`, `/api/trainings`, `/api/matches`, `/api/callups`, `/api/formations`, and `/api/settings`.
 
 ## External Dependencies
 - **PostgreSQL (Neon)**: Cloud-hosted relational database for all data persistence.
@@ -56,7 +54,6 @@ The application is built with a React frontend using TypeScript and Vite, styled
 - **Database Configuration**:
   - Removed auto-seeding for players and trainings (database now starts empty)
   - Players list initializes as empty array instead of pre-populated data
-  - Only admin user auto-seeding remains active for first-time setup
   - Database tables emptied: players (0 records), trainings (0 records)
 
 - **Training Management Enhancement**:
@@ -83,39 +80,6 @@ The application is built with a React frontend using TypeScript and Vite, styled
   - Schema migration executed via `npm run db:push`
   - Type safety maintained across frontend and database layer
   - Backend API handles new `isHome` field without additional changes (Drizzle auto-conversion)
-
-### October 10, 2025 - User Registration Feature
-**Self-Service Account Creation**
-
-- **Frontend Enhancements**:
-  - Added toggle between login and sign-up forms in LoginPage component
-  - Registration form includes: username, email, password, and password confirmation
-  - Client-side validation: password length (min 6 chars) and password match
-  - Responsive error/success messaging with proper backend error surfacing
-  - Auto-redirect to login after successful registration (2 seconds)
-  
-- **Backend Improvements**:
-  - Duplicate username detection with meaningful error messages
-  - Proper HTTP status codes: 400 for validation errors, 500 for server errors
-  - Password hashing with bcrypt (10 salt rounds)
-  - New users created with 'user' role (non-admin)
-  
-- **Security & UX**:
-  - Password fields cleared immediately after successful registration
-  - All form fields cleared when switching between login/signup
-  - Frontend properly checks response.ok before showing success
-  - Backend errors surfaced to user with Italian messages
-  
-- **Testing**:
-  - ✅ Registration flow tested and verified
-  - ✅ Duplicate username detection working
-  - ✅ Password validation working
-  - ✅ Login with newly created accounts working
-  
-- **Configuration Fixes**:
-  - Fixed Vite allowedHosts to support Replit preview (no more "Blocked request" errors)
-  - Added empty request body validation in player update endpoint
-  - Added player existence checks in stats update useEffects
 
 ### October 10, 2025 - Yellow and Red Cards Feature
 **Complete Cards Tracking System**
@@ -190,36 +154,3 @@ The application is built with a React frontend using TypeScript and Vite, styled
   - ✅ Backend running without errors
   - ✅ All workflows operational
   - ✅ Player creation API tested successfully (Mario Rossi added to database)
-
-### October 10, 2025 - Database Auto-Seeding & Admin User Management
-**Complete Database Initialization System**
-
-- **Auto-Seeding Implementation**:
-  - Implemented automatic database seeding for players (19 players) on first app load
-  - Implemented automatic database seeding for trainings (39 weeks) on first app load
-  - Implemented automatic admin user creation when database is empty
-  - Added React StrictMode protection using useRef to prevent duplicate seeding
-  - Database verified: 19 players, 39 trainings, all with proper IDs and data
-
-- **Admin User Auto-Creation**:
-  - Backend modified to automatically assign 'admin' role to first user created
-  - Frontend seeds admin user (username: admin, password: admin2024) if users table is empty
-  - Subsequent users are created with 'user' role by default
-  - Eliminates need for manual admin user creation
-  
-- **Vite Proxy Configuration**:
-  - Verified Vite proxy working correctly for all API endpoints
-  - All API requests properly routed from frontend (port 5000) to backend (port 3001)
-  - Tested all endpoints: players, trainings, matches, callups, formations, settings, auth
-
-- **Database Verification**:
-  - ✅ Players table: 19 records with valid IDs
-  - ✅ Trainings table: 39 records with valid weekNumbers and weekLabels
-  - ✅ Users table: Admin user created with correct role
-  - ✅ Settings table: Upsert logic working correctly
-  - ✅ All workflows running without errors
-
-- **Technical Notes**:
-  - useRef guard prevents React StrictMode double-seeding in development
-  - Backend creates first user as 'admin', subsequent users as 'user'
-  - Architect recommendations: Consider transaction guards for race conditions, enforce password rotation on first login
