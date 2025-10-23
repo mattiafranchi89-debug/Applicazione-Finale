@@ -24,6 +24,88 @@ import {
   INITIAL_TRAINING_WEEKS,
 } from './initialData';
 
+declare global {
+  interface Window {
+    XLSX?: any;
+  }
+}
+
+const EXCEL_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+let xlsxLoaderPromise: Promise<any> | null = null;
+
+const loadXLSX = async (): Promise<any> => {
+  if (typeof window === 'undefined') {
+    throw new Error('Importazione Excel disponibile solo nel browser.');
+  }
+  if (window.XLSX) {
+    return window.XLSX;
+  }
+  if (!xlsxLoaderPromise) {
+    xlsxLoaderPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = EXCEL_SCRIPT_URL;
+      script.async = true;
+      script.onload = () => {
+        if (window.XLSX) {
+          resolve(window.XLSX);
+        } else {
+          xlsxLoaderPromise = null;
+          reject(new Error('Libreria Excel non disponibile.'));
+        }
+      };
+      script.onerror = () => {
+        xlsxLoaderPromise = null;
+        reject(new Error('Impossibile caricare la libreria Excel.'));
+      };
+      const target = document.body ?? document.head ?? document.documentElement;
+      if (!target) {
+        xlsxLoaderPromise = null;
+        reject(new Error('Impossibile inizializzare il caricamento della libreria Excel.'));
+        return;
+      }
+      target.appendChild(script);
+    });
+  }
+  return xlsxLoaderPromise;
+};
+
+const POSITION_KEYWORDS: Record<string, Player['position']> = {
+  'portiere': 'Portiere',
+  'terzino destro': 'Terzino Destro',
+  'terzino dx': 'Terzino Destro',
+  'td': 'Terzino Destro',
+  'terzino sinistro': 'Terzino Sinistro',
+  'terzino sx': 'Terzino Sinistro',
+  'ts': 'Terzino Sinistro',
+  'difensore centrale': 'Difensore Centrale',
+  'difensore': 'Difensore Centrale',
+  'centrale difensivo': 'Difensore Centrale',
+  'centrocampista centrale': 'Centrocampista Centrale',
+  'centrocampista': 'Centrocampista Centrale',
+  'mezzala': 'Centrocampista Centrale',
+  'ala': 'Ala',
+  'esterno': 'Ala',
+  'esterno destro': 'Ala',
+  'esterno sinistro': 'Ala',
+  'attaccante': 'Attaccante',
+  'punta': 'Attaccante',
+};
+
+const normalisePositionLabel = (value: string): Player['position'] => {
+  const normalized = value.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return 'Attaccante';
+  if (POSITION_KEYWORDS[normalized]) {
+    return POSITION_KEYWORDS[normalized];
+  }
+  if (normalized.includes('port')) return 'Portiere';
+  if (normalized.includes('sinistr') && normalized.includes('terzino')) return 'Terzino Sinistro';
+  if (normalized.includes('terzino')) return 'Terzino Destro';
+  if (normalized.includes('difens')) return 'Difensore Centrale';
+  if (normalized.includes('centro')) return 'Centrocampista Centrale';
+  if (normalized.includes('estern') || normalized.includes('ala')) return 'Ala';
+  return 'Attaccante';
+};
+
 const itDate = (iso:string, opts?:Intl.DateTimeFormatOptions) => new Date(iso).toLocaleDateString('it-IT', opts);
 
 export default function App(){
@@ -415,6 +497,133 @@ function Dashboard({totalPlayers,totalMatches,totalGoals,players}:{totalPlayers:
 
 function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendancePercent,exportMatchStatsCSV}:{players:Player[]; setPlayers:React.Dispatch<React.SetStateAction<Player[]>>; getPlayerTotalMinutes:(id:number)=>number; getPlayerAttendancePercent:(id:number)=>number; exportMatchStatsCSV:()=>void}){
   const [showAdd,setShowAdd]=useState(false); const [editingPlayer,setEditingPlayer]=useState<Player|null>(null); const [form,setForm]=useState<Partial<Player>>({position:'Attaccante',birthYear:2007});
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportPlayers = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setImporting(true);
+
+    try {
+      const XLSX = await loadXLSX();
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheetName = workbook.SheetNames?.[0];
+
+      if (!sheetName) {
+        throw new Error('Il file Excel non contiene alcun foglio.');
+      }
+
+      const worksheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, {
+        header: 1,
+        defval: '',
+      }) as Array<Array<string | number | null | undefined>>;
+
+      if (!Array.isArray(rows) || rows.length <= 1) {
+        throw new Error('Il file Excel non contiene righe di dati.');
+      }
+
+      const headerRow: string[] = rows[0].map((cell) => String(cell ?? '').trim().toLowerCase());
+      const requiredHeaders = ['nome', 'cognome', 'ruolo', 'anno'] as const;
+      const columnIndex: Record<(typeof requiredHeaders)[number], number> = {
+        nome: -1,
+        cognome: -1,
+        ruolo: -1,
+        anno: -1,
+      };
+
+      requiredHeaders.forEach((header) => {
+        const index = headerRow.findIndex((value) => value === header);
+        if (index === -1) {
+          throw new Error(`Colonna "${header}" non trovata nel file Excel.`);
+        }
+        columnIndex[header] = index;
+      });
+
+      const existingKeys = new Set(players.map((p) => `${p.firstName.toLowerCase()}|${p.lastName.toLowerCase()}`));
+      let nextNumber = players.length > 0 ? Math.max(...players.map((p) => p.number)) : 0;
+      const duplicateRows: number[] = [];
+      const invalidRows: number[] = [];
+      const createdPlayers: Player[] = [];
+
+      for (let i = 1; i < rows.length; i += 1) {
+        const row = rows[i];
+        if (!row) continue;
+
+        const rowNumber = i + 1; // Excel rows are 1-indexed and include header
+        const firstName = String(row[columnIndex.nome] ?? '').trim();
+        const lastName = String(row[columnIndex.cognome] ?? '').trim();
+        const roleValue = String(row[columnIndex.ruolo] ?? '').trim();
+        const yearValue = String(row[columnIndex.anno] ?? '').trim();
+
+        if (!firstName || !lastName || !roleValue || !yearValue) {
+          invalidRows.push(rowNumber);
+          continue;
+        }
+
+        const birthYear = Number.parseInt(yearValue, 10);
+        if (!Number.isFinite(birthYear)) {
+          invalidRows.push(rowNumber);
+          continue;
+        }
+
+        const key = `${firstName.toLowerCase()}|${lastName.toLowerCase()}`;
+        if (existingKeys.has(key)) {
+          duplicateRows.push(rowNumber);
+          continue;
+        }
+
+        try {
+          const created = await api.players.create({
+            firstName,
+            lastName,
+            number: nextNumber + 1,
+            position: normalisePositionLabel(roleValue),
+            birthYear,
+            goals: 0,
+            presences: 0,
+            yellowCards: 0,
+            redCards: 0,
+          });
+
+          createdPlayers.push(created);
+          nextNumber = created.number ?? (nextNumber + 1);
+          existingKeys.add(key);
+        } catch (error) {
+          console.error('Errore durante la creazione del giocatore importato:', error);
+          invalidRows.push(rowNumber);
+        }
+      }
+
+      if (createdPlayers.length > 0) {
+        setPlayers((prev) => [...prev, ...createdPlayers]);
+      }
+
+      const summary: string[] = [`Importati ${createdPlayers.length} giocatori.`];
+      if (duplicateRows.length > 0) {
+        summary.push(`Ignorate ${duplicateRows.length} righe già presenti (righe: ${duplicateRows.join(', ')}).`);
+      }
+      if (invalidRows.length > 0) {
+        summary.push(`Scartate ${invalidRows.length} righe con dati mancanti o non validi (righe: ${invalidRows.join(', ')}).`);
+      }
+      alert(summary.join('\n'));
+    } catch (error) {
+      console.error('Importazione giocatori non riuscita:', error);
+      alert(error instanceof Error ? error.message : 'Importazione non riuscita. Controlla il file Excel e riprova.');
+    } finally {
+      setImporting(false);
+      event.target.value = '';
+    }
+  };
   const addPlayer=async()=>{ if(!form.firstName||!form.lastName) return; const autoNumber = players.length > 0 ? Math.max(...players.map(p => p.number)) + 1 : 1; const newPlayer = await api.players.create({ firstName:form.firstName!, lastName:form.lastName!, number:autoNumber, position:(form.position??'Attaccante') as Player['position'], goals:0, presences:0, yellowCards:0, redCards:0, birthYear:Number(form.birthYear??2007) }); setPlayers(prev=>[...prev, newPlayer]); setForm({position:'Attaccante',birthYear:2007}); setShowAdd(false); };
   const updatePlayer=async()=>{ if(!editingPlayer||!form.firstName||!form.lastName) return; try { const updated = await api.players.update(editingPlayer.id, { firstName:form.firstName!, lastName:form.lastName!, number:Number(form.number??editingPlayer.number), position:(form.position??editingPlayer.position) as Player['position'], birthYear:Number(form.birthYear??editingPlayer.birthYear) }); setPlayers(prev=>prev.map(p=>p.id===editingPlayer.id?updated:p)); setEditingPlayer(null); setForm({position:'Attaccante',birthYear:2007}); } catch(error) { console.error('Error updating player:', error); alert('Errore durante l\'aggiornamento del giocatore. Il giocatore potrebbe non esistere nel database.'); } };
   const deletePlayer=async(id:number)=>{ await api.players.delete(id); setPlayers(prev=>prev.filter(p=>p.id!==id)); };
@@ -425,7 +634,30 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
   const callUpOnlyPlayers = players.filter(p => p.birthYear === 2009);
   
   return (<section className="space-y-6">
-    <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Rosa Giocatori</h2><div className="flex gap-2"><button className="btn btn-primary" onClick={exportMatchStatsCSV}>📊 Esporta Statistiche CSV</button><button className="btn btn-primary" onClick={()=>{setShowAdd(s=>!s);setEditingPlayer(null);}}><UserPlus size={18}/>Aggiungi Giocatore</button></div></div>
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept=".xlsx,.xls"
+      className="hidden"
+      onChange={handleImportPlayers}
+    />
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <h2 className="text-lg font-semibold">Rosa Giocatori</h2>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap gap-2">
+          <button className="btn btn-primary" type="button" onClick={exportMatchStatsCSV}>📊 Esporta Statistiche CSV</button>
+          <button
+            className="btn btn-primary"
+            type="button"
+            onClick={handleImportClick}
+            disabled={importing}
+          >
+            {importing ? '⏳ Importazione...' : '📥 Importa da Excel'}
+          </button>
+        </div>
+        <button className="btn btn-primary" type="button" onClick={()=>{setShowAdd(s=>!s);setEditingPlayer(null);}}><UserPlus size={18}/>Aggiungi Giocatore</button>
+      </div>
+    </div>
     {showAdd && (<div className="card grid sm:grid-cols-4 gap-3">
       <div><label className="text-sm text-gray-600">Nome</label><input className="w-full border rounded-lg px-3 py-2" value={form.firstName??''} onChange={e=>setForm(f=>({...f, firstName:e.target.value}))}/></div>
       <div><label className="text-sm text-gray-600">Cognome</label><input className="w-full border rounded-lg px-3 py-2" value={form.lastName??''} onChange={e=>setForm(f=>({...f, lastName:e.target.value}))}/></div>
