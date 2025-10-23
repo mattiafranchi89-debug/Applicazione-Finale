@@ -1,14 +1,5 @@
 import { pgTable, serial, text, integer, boolean, jsonb, timestamp } from 'drizzle-orm/pg-core';
 
-export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  username: text('username').notNull().unique(),
-  password: text('password').notNull(),
-  email: text('email').notNull(),
-  role: text('role').notNull().default('user'),
-  createdAt: timestamp('created_at').defaultNow()
-});
-
 export const players = pgTable('players', {
   id: serial('id').primaryKey(),
   number: integer('number').notNull(),
@@ -74,8 +65,6 @@ export const appSettings = pgTable('app_settings', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
 export type Player = typeof players.$inferSelect;
 export type InsertPlayer = typeof players.$inferInsert;
 export type Training = typeof trainings.$inferSelect;

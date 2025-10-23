@@ -95,15 +95,6 @@ export const INITIAL_FORMATION = {
   substitutes: [null, null, null, null, null, null, null, null, null] as (number | null)[],
 };
 
-export const INITIAL_AUTH_USERS = [
-  { username: 'admin', password: 'admin2024', email: 'mattia.franchi89@gmail.com', role: 'admin' as const },
-];
-
-export const INITIAL_AUTH_DATA = {
-  currentUser: null,
-  users: INITIAL_AUTH_USERS,
-};
-
 export const INITIAL_SETTINGS = {
   selectedWeek: 1,
 };
