@@ -1,6 +1,4 @@
 import type {
-  AuthData,
-  AuthUser,
   CallUpData,
   FormationData,
   Match,
@@ -8,8 +6,6 @@ import type {
   TrainingWeek,
 } from './types';
 import {
-  INITIAL_AUTH_DATA as SHARED_INITIAL_AUTH_DATA,
-  INITIAL_AUTH_USERS as SHARED_INITIAL_AUTH_USERS,
   INITIAL_CALLUP as SHARED_INITIAL_CALLUP,
   INITIAL_FORMATION as SHARED_INITIAL_FORMATION,
   INITIAL_MATCHES as SHARED_INITIAL_MATCHES,
@@ -43,13 +39,6 @@ export const INITIAL_FORMATION: FormationData = {
   ...SHARED_INITIAL_FORMATION,
   positions: { ...SHARED_INITIAL_FORMATION.positions },
   substitutes: SHARED_INITIAL_FORMATION.substitutes ? [...SHARED_INITIAL_FORMATION.substitutes] : [],
-};
-
-export const INITIAL_AUTH_USERS: AuthUser[] = SHARED_INITIAL_AUTH_USERS.map(user => ({ ...user }));
-
-export const INITIAL_AUTH_DATA: AuthData = {
-  currentUser: SHARED_INITIAL_AUTH_DATA.currentUser,
-  users: INITIAL_AUTH_USERS,
 };
 
 export const INITIAL_SETTINGS = { ...SHARED_INITIAL_SETTINGS };

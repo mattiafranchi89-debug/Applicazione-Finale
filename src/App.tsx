@@ -1,10 +1,8 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Users, Calendar, TrendingUp, UserPlus, Trash2, Award, Activity, ClipboardCheck, CheckCircle, XCircle, Trophy, Target, Send, Pencil, Plus, Trash, FlagTriangleRight, RotateCcw, LogOut, UserCog, Key } from 'lucide-react';
+import { Users, Calendar, TrendingUp, UserPlus, Trash2, Award, Activity, ClipboardCheck, CheckCircle, XCircle, Trophy, Target, Send, Pencil, Plus, Trash, FlagTriangleRight, RotateCcw } from 'lucide-react';
 import { api } from './api';
 import type {
-  AuthData,
-  AuthUser,
   CallUpData,
   CardEvent,
   FormationData,
@@ -18,7 +16,6 @@ import type {
   TrainingWeek,
 } from './types';
 import {
-  INITIAL_AUTH_DATA,
   INITIAL_CALLUP,
   INITIAL_FORMATION,
   INITIAL_MATCHES,
@@ -27,10 +24,92 @@ import {
   INITIAL_TRAINING_WEEKS,
 } from './initialData';
 
+declare global {
+  interface Window {
+    XLSX?: any;
+  }
+}
+
+const EXCEL_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+let xlsxLoaderPromise: Promise<any> | null = null;
+
+const loadXLSX = async (): Promise<any> => {
+  if (typeof window === 'undefined') {
+    throw new Error('Importazione Excel disponibile solo nel browser.');
+  }
+  if (window.XLSX) {
+    return window.XLSX;
+  }
+  if (!xlsxLoaderPromise) {
+    xlsxLoaderPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = EXCEL_SCRIPT_URL;
+      script.async = true;
+      script.onload = () => {
+        if (window.XLSX) {
+          resolve(window.XLSX);
+        } else {
+          xlsxLoaderPromise = null;
+          reject(new Error('Libreria Excel non disponibile.'));
+        }
+      };
+      script.onerror = () => {
+        xlsxLoaderPromise = null;
+        reject(new Error('Impossibile caricare la libreria Excel.'));
+      };
+      const target = document.body ?? document.head ?? document.documentElement;
+      if (!target) {
+        xlsxLoaderPromise = null;
+        reject(new Error('Impossibile inizializzare il caricamento della libreria Excel.'));
+        return;
+      }
+      target.appendChild(script);
+    });
+  }
+  return xlsxLoaderPromise;
+};
+
+const POSITION_KEYWORDS: Record<string, Player['position']> = {
+  'portiere': 'Portiere',
+  'terzino destro': 'Terzino Destro',
+  'terzino dx': 'Terzino Destro',
+  'td': 'Terzino Destro',
+  'terzino sinistro': 'Terzino Sinistro',
+  'terzino sx': 'Terzino Sinistro',
+  'ts': 'Terzino Sinistro',
+  'difensore centrale': 'Difensore Centrale',
+  'difensore': 'Difensore Centrale',
+  'centrale difensivo': 'Difensore Centrale',
+  'centrocampista centrale': 'Centrocampista Centrale',
+  'centrocampista': 'Centrocampista Centrale',
+  'mezzala': 'Centrocampista Centrale',
+  'ala': 'Ala',
+  'esterno': 'Ala',
+  'esterno destro': 'Ala',
+  'esterno sinistro': 'Ala',
+  'attaccante': 'Attaccante',
+  'punta': 'Attaccante',
+};
+
+const normalisePositionLabel = (value: string): Player['position'] => {
+  const normalized = value.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return 'Attaccante';
+  if (POSITION_KEYWORDS[normalized]) {
+    return POSITION_KEYWORDS[normalized];
+  }
+  if (normalized.includes('port')) return 'Portiere';
+  if (normalized.includes('sinistr') && normalized.includes('terzino')) return 'Terzino Sinistro';
+  if (normalized.includes('terzino')) return 'Terzino Destro';
+  if (normalized.includes('difens')) return 'Difensore Centrale';
+  if (normalized.includes('centro')) return 'Centrocampista Centrale';
+  if (normalized.includes('estern') || normalized.includes('ala')) return 'Ala';
+  return 'Attaccante';
+};
+
 const itDate = (iso:string, opts?:Intl.DateTimeFormatOptions) => new Date(iso).toLocaleDateString('it-IT', opts);
 
 export default function App(){
-  const [activeTab, setActiveTab] = useState<'dashboard'|'players'|'trainings'|'callup'|'matches'|'results'|'standings'|'scorers'|'admin'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard'|'players'|'trainings'|'callup'|'matches'|'results'|'standings'|'scorers'>('dashboard');
   const [players, setPlayers] = useState<Player[]>(INITIAL_PLAYERS);
   const [trainings, setTrainings] = useState<TrainingWeek[]>(INITIAL_TRAINING_WEEKS);
   const [selectedWeek, setSelectedWeek] = useState<number>(INITIAL_SETTINGS.selectedWeek);
@@ -38,7 +117,6 @@ export default function App(){
   const [matches, setMatches] = useState<Match[]>(INITIAL_MATCHES);
   const [openMatchId, setOpenMatchId] = useState<number|null>(null);
   const [formation, setFormation] = useState<FormationData>(INITIAL_FORMATION);
-  const [authData, setAuthData] = useState<AuthData>(INITIAL_AUTH_DATA);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [callupId, setCallupId] = useState<number | null>(null);
   const [formationId, setFormationId] = useState<number | null>(null);
@@ -55,8 +133,7 @@ export default function App(){
       api.callups.getAll(),
       api.formations.getLatest(),
       api.settings.get(),
-      api.auth.getUsers()
-    ]).then(async ([playersData, trainingsData, matchesData, callupsData, formationData, settingsData, usersData]) => {
+    ]).then(async ([playersData, trainingsData, matchesData, callupsData, formationData, settingsData]) => {
       setPlayers(playersData.length ? playersData : INITIAL_PLAYERS);
 
       setTrainings(trainingsData.length ? trainingsData : INITIAL_TRAINING_WEEKS);
@@ -68,8 +145,6 @@ export default function App(){
       } else {
         setSelectedWeek(INITIAL_SETTINGS.selectedWeek);
       }
-
-      setAuthData(prev => ({ ...prev, users: usersData }));
 
       setMatches(matchesData.length ? matchesData : INITIAL_MATCHES);
       if (callupsData.length > 0 && callupsData[0]) {
@@ -267,62 +342,6 @@ export default function App(){
     document.body.removeChild(link);
   };
 
-  const handleLogin = async (username: string, password: string): Promise<boolean> => {
-    try {
-      const response = await api.auth.login(username, password);
-      if (response.success && response.user) {
-        let usersList = authData.users;
-        try {
-          const fetchedUsers = await api.auth.getUsers();
-          if (Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
-            usersList = fetchedUsers;
-          }
-        } catch (fetchError) {
-          console.warn('Unable to refresh users after login:', fetchError);
-        }
-
-        setAuthData(prev => ({ ...prev, currentUser: { ...response.user }, users: usersList }));
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Login error:', error);
-      return false;
-    }
-  };
-
-  const handleLogout = () => {
-    setAuthData(prev => ({ ...prev, currentUser: null }));
-    setActiveTab('dashboard');
-  };
-
-  const addUser = async (username: string, password: string, email: string) => {
-    try {
-      const newUser = await api.auth.createUser(username, password, email);
-      setAuthData(prev => ({ ...prev, users: [...prev.users, newUser] }));
-    } catch (error) {
-      console.error('Add user error:', error);
-    }
-  };
-
-  const deleteUser = async (username: string) => {
-    try {
-      await api.auth.deleteUser(username);
-      setAuthData(prev => ({ ...prev, users: prev.users.filter(u => u.username !== username) }));
-    } catch (error) {
-      console.error('Delete user error:', error);
-    }
-  };
-
-  const updateUserPassword = async (username: string, newPassword: string) => {
-    try {
-      await api.auth.updatePassword(username, newPassword);
-      // Password is not returned, so we just keep the user data as is
-    } catch (error) {
-      console.error('Update password error:', error);
-    }
-  };
-
   const resetLocalData = async()=>{
     if (!confirm('Sei sicuro di voler cancellare tutti i dati locali e tornare allo stato iniziale?')) return;
 
@@ -358,7 +377,6 @@ export default function App(){
         setFormationId(INITIAL_FORMATION.id ?? null);
       }
       setOpenMatchId(null);
-      setAuthData({ currentUser: null, users: state.users });
     } catch (err) {
       console.error('Failed to reset data:', err);
       alert('Errore durante il reset dei dati');
@@ -406,19 +424,13 @@ Calzettoni blu`; window.open(`https://wa.me/?text=${encodeURIComponent(m)}`,'_bl
   const closeMatch = ()=>setOpenMatchId(null);
   const selectedMatch = matches.find(m=>m.id===openMatchId)||null;
 
-  if (!authData.currentUser) {
-    return <LoginPage onLogin={handleLogin} />;
-  }
-
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900">
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-3">
           <Target className="text-blue-600"/>
           <h1 className="text-xl font-bold">Seguro Calcio U19</h1>
-          <span className="ml-auto text-sm text-gray-500">{authData.currentUser.email}</span>
-          <button className="ml-3 btn" onClick={resetLocalData}><RotateCcw size={16}/> Reset dati locali</button>
-          <button className="btn btn-ghost" onClick={handleLogout}><LogOut size={16}/> Esci</button>
+          <button className="ml-auto btn" onClick={resetLocalData}><RotateCcw size={16}/> Reset dati locali</button>
         </div>
         <nav className="max-w-6xl mx-auto px-2 pb-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-2">
           <TabButton active={activeTab==='dashboard'} onClick={()=>setActiveTab('dashboard')} icon={<TrendingUp size={18}/>}>Dashboard</TabButton>
@@ -429,7 +441,6 @@ Calzettoni blu`; window.open(`https://wa.me/?text=${encodeURIComponent(m)}`,'_bl
           <TabButton active={activeTab==='results'} onClick={()=>setActiveTab('results')} icon={<Activity size={18}/>}>Risultati</TabButton>
           <TabButton active={activeTab==='standings'} onClick={()=>setActiveTab('standings')} icon={<Trophy size={18}/>}>Classifica</TabButton>
           <TabButton active={activeTab==='scorers'} onClick={()=>setActiveTab('scorers')} icon={<Award size={18}/>}>Marcatori</TabButton>
-          {authData.currentUser.role === 'admin' && <TabButton active={activeTab==='admin'} onClick={()=>setActiveTab('admin')} icon={<UserCog size={18}/>}>Admin</TabButton>}
         </nav>
       </header>
 
@@ -452,7 +463,6 @@ Calzettoni blu`; window.open(`https://wa.me/?text=${encodeURIComponent(m)}`,'_bl
         {activeTab==='standings' && (
           <div className="card"><h2 className="text-lg font-semibold mb-3">Classifica</h2><div className="flex justify-center"><iframe src="https://www.tuttocampo.it/WidgetV2/Classifica/e888709c-f06f-4678-9178-40c209ac19ef" width="500" height="600" scrolling="no" loading="lazy" frameBorder={0} style={{border:0,width:'100%',maxWidth:500}}/></div></div>
         )}
-        {activeTab==='admin' && authData.currentUser.role === 'admin' && <AdminPanel users={authData.users} addUser={addUser} deleteUser={deleteUser} updateUserPassword={updateUserPassword} />}
       </main>
 
       {selectedMatch && (
@@ -487,6 +497,150 @@ function Dashboard({totalPlayers,totalMatches,totalGoals,players}:{totalPlayers:
 
 function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendancePercent,exportMatchStatsCSV}:{players:Player[]; setPlayers:React.Dispatch<React.SetStateAction<Player[]>>; getPlayerTotalMinutes:(id:number)=>number; getPlayerAttendancePercent:(id:number)=>number; exportMatchStatsCSV:()=>void}){
   const [showAdd,setShowAdd]=useState(false); const [editingPlayer,setEditingPlayer]=useState<Player|null>(null); const [form,setForm]=useState<Partial<Player>>({position:'Attaccante',birthYear:2007});
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportPlayers = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setImporting(true);
+
+    try {
+      const XLSX = await loadXLSX();
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheetName = workbook.SheetNames?.[0];
+
+      if (!sheetName) {
+        throw new Error('Il file Excel non contiene alcun foglio.');
+      }
+
+      const worksheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, {
+        header: 1,
+        defval: '',
+      }) as Array<Array<string | number | null | undefined>>;
+
+      if (!Array.isArray(rows) || rows.length <= 1) {
+        throw new Error('Il file Excel non contiene righe di dati.');
+      }
+
+      const headerRow: string[] = rows[0].map((cell) => String(cell ?? '').trim().toLowerCase());
+      const requiredHeaders = ['nome', 'cognome', 'ruolo', 'anno'] as const;
+      const columnIndex: Record<(typeof requiredHeaders)[number], number> = {
+        nome: -1,
+        cognome: -1,
+        ruolo: -1,
+        anno: -1,
+      };
+
+      requiredHeaders.forEach((header) => {
+        const index = headerRow.findIndex((value) => value === header);
+        if (index === -1) {
+          throw new Error(`Colonna "${header}" non trovata nel file Excel.`);
+        }
+        columnIndex[header] = index;
+      });
+
+      const existingKeys = new Set(players.map((p) => `${p.firstName.toLowerCase()}|${p.lastName.toLowerCase()}`));
+      let nextNumber = players.length > 0 ? Math.max(...players.map((p) => p.number)) : 0;
+      const skippedRows: Array<{ row: number; reason: string }> = [];
+      const createdPlayers: Player[] = [];
+
+      for (let i = 1; i < rows.length; i += 1) {
+        const row = rows[i];
+        if (!row) continue;
+
+        const rowNumber = i + 1; // Excel rows are 1-indexed and include header
+        const firstName = String(row[columnIndex.nome] ?? '').trim();
+        const lastName = String(row[columnIndex.cognome] ?? '').trim();
+        const roleValue = String(row[columnIndex.ruolo] ?? '').trim();
+        const yearValue = String(row[columnIndex.anno] ?? '').trim();
+
+        const missingFields: string[] = [];
+        if (!firstName) missingFields.push('Nome');
+        if (!lastName) missingFields.push('Cognome');
+        if (!roleValue) missingFields.push('Ruolo');
+        if (!yearValue) missingFields.push('Anno');
+
+        if (missingFields.length > 0) {
+          skippedRows.push({
+            row: rowNumber,
+            reason: `Campi obbligatori mancanti: ${missingFields.join(', ')}.`,
+          });
+          continue;
+        }
+
+        const birthYear = Number.parseInt(yearValue, 10);
+        if (!Number.isFinite(birthYear)) {
+          skippedRows.push({
+            row: rowNumber,
+            reason: `Anno non valido: "${yearValue}".`,
+          });
+          continue;
+        }
+
+        const key = `${firstName.toLowerCase()}|${lastName.toLowerCase()}`;
+        if (existingKeys.has(key)) {
+          skippedRows.push({
+            row: rowNumber,
+            reason: `${firstName} ${lastName} è già presente nella rosa.`,
+          });
+          continue;
+        }
+
+        try {
+          const created = await api.players.create({
+            firstName,
+            lastName,
+            number: nextNumber + 1,
+            position: normalisePositionLabel(roleValue),
+            birthYear,
+            goals: 0,
+            presences: 0,
+            yellowCards: 0,
+            redCards: 0,
+          });
+
+          createdPlayers.push(created);
+          nextNumber = created.number ?? (nextNumber + 1);
+          existingKeys.add(key);
+        } catch (error) {
+          console.error('Errore durante la creazione del giocatore importato:', error);
+          skippedRows.push({
+            row: rowNumber,
+            reason: 'Errore durante il salvataggio del giocatore. Riprova più tardi.',
+          });
+        }
+      }
+
+      if (createdPlayers.length > 0) {
+        setPlayers((prev) => [...prev, ...createdPlayers]);
+      }
+
+      const summary: string[] = [`Importati ${createdPlayers.length} giocatori.`];
+      if (skippedRows.length > 0) {
+        summary.push('Righe scartate:');
+        skippedRows.forEach(({ row, reason }) => {
+          summary.push(`- Riga ${row}: ${reason}`);
+        });
+      }
+      alert(summary.join('\n'));
+    } catch (error) {
+      console.error('Importazione giocatori non riuscita:', error);
+      alert(error instanceof Error ? error.message : 'Importazione non riuscita. Controlla il file Excel e riprova.');
+    } finally {
+      setImporting(false);
+      event.target.value = '';
+    }
+  };
   const addPlayer=async()=>{ if(!form.firstName||!form.lastName) return; const autoNumber = players.length > 0 ? Math.max(...players.map(p => p.number)) + 1 : 1; const newPlayer = await api.players.create({ firstName:form.firstName!, lastName:form.lastName!, number:autoNumber, position:(form.position??'Attaccante') as Player['position'], goals:0, presences:0, yellowCards:0, redCards:0, birthYear:Number(form.birthYear??2007) }); setPlayers(prev=>[...prev, newPlayer]); setForm({position:'Attaccante',birthYear:2007}); setShowAdd(false); };
   const updatePlayer=async()=>{ if(!editingPlayer||!form.firstName||!form.lastName) return; try { const updated = await api.players.update(editingPlayer.id, { firstName:form.firstName!, lastName:form.lastName!, number:Number(form.number??editingPlayer.number), position:(form.position??editingPlayer.position) as Player['position'], birthYear:Number(form.birthYear??editingPlayer.birthYear) }); setPlayers(prev=>prev.map(p=>p.id===editingPlayer.id?updated:p)); setEditingPlayer(null); setForm({position:'Attaccante',birthYear:2007}); } catch(error) { console.error('Error updating player:', error); alert('Errore durante l\'aggiornamento del giocatore. Il giocatore potrebbe non esistere nel database.'); } };
   const deletePlayer=async(id:number)=>{ await api.players.delete(id); setPlayers(prev=>prev.filter(p=>p.id!==id)); };
@@ -497,7 +651,30 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
   const callUpOnlyPlayers = players.filter(p => p.birthYear === 2009);
   
   return (<section className="space-y-6">
-    <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Rosa Giocatori</h2><div className="flex gap-2"><button className="btn btn-primary" onClick={exportMatchStatsCSV}>📊 Esporta Statistiche CSV</button><button className="btn btn-primary" onClick={()=>{setShowAdd(s=>!s);setEditingPlayer(null);}}><UserPlus size={18}/>Aggiungi Giocatore</button></div></div>
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept=".xlsx,.xls"
+      className="hidden"
+      onChange={handleImportPlayers}
+    />
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <h2 className="text-lg font-semibold">Rosa Giocatori</h2>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap gap-2">
+          <button className="btn btn-primary" type="button" onClick={exportMatchStatsCSV}>📊 Esporta Statistiche CSV</button>
+          <button
+            className="btn btn-primary"
+            type="button"
+            onClick={handleImportClick}
+            disabled={importing}
+          >
+            {importing ? '⏳ Importazione...' : '📥 Importa da Excel'}
+          </button>
+        </div>
+        <button className="btn btn-primary" type="button" onClick={()=>{setShowAdd(s=>!s);setEditingPlayer(null);}}><UserPlus size={18}/>Aggiungi Giocatore</button>
+      </div>
+    </div>
     {showAdd && (<div className="card grid sm:grid-cols-4 gap-3">
       <div><label className="text-sm text-gray-600">Nome</label><input className="w-full border rounded-lg px-3 py-2" value={form.firstName??''} onChange={e=>setForm(f=>({...f, firstName:e.target.value}))}/></div>
       <div><label className="text-sm text-gray-600">Cognome</label><input className="w-full border rounded-lg px-3 py-2" value={form.lastName??''} onChange={e=>setForm(f=>({...f, lastName:e.target.value}))}/></div>
@@ -1000,460 +1177,5 @@ function FormationBuilder({players, formation, setFormation}:{players:Player[]; 
         </div>
       </div>
     </div>
-  );
-}
-
-function LoginPage({ onLogin }: { onLogin: (username: string, password: string) => Promise<boolean> }) {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [email, setEmail] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    const loginSuccess = await onLogin(username, password);
-    if (!loginSuccess) {
-      setError('Credenziali non valide');
-    }
-  };
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    const trimmedUsername = username.trim();
-    const trimmedEmail = email.trim();
-
-    if (password !== confirmPassword) {
-      setError('Le password non coincidono');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('La password deve essere di almeno 6 caratteri');
-      return;
-    }
-
-    try {
-      await api.auth.createUser(trimmedUsername, password, trimmedEmail);
-      setSuccess('Registrazione completata! Ora puoi accedere.');
-      setPassword('');
-      setConfirmPassword('');
-      setTimeout(() => {
-        setIsSignUp(false);
-        setSuccess('');
-        setUsername('');
-        setEmail('');
-      }, 2000);
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message || 'Errore durante la registrazione.');
-      } else {
-        setError('Errore durante la registrazione. Username potrebbe essere già in uso.');
-      }
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 to-blue-800">
-      <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <img src="/logo.png" alt="Seguro Calcio" className="w-32 h-32 mx-auto mb-4 rounded-full" />
-          <h1 className="text-3xl font-bold text-gray-900">Seguro Calcio U19</h1>
-          <p className="text-gray-600 mt-2">Sistema di Gestione Squadra</p>
-        </div>
-        
-        {!isSignUp ? (
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nome Utente</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Inserisci nome utente"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Inserisci password"
-                required
-              />
-            </div>
-            
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-
-            {showForgotPassword && (
-              <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-sm">
-                Per recuperare la password, contatta l'amministratore:<br/>
-                <strong>mattia.franchi89@gmail.com</strong>
-              </div>
-            )}
-            
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-            >
-              Accedi
-            </button>
-
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => setShowForgotPassword(!showForgotPassword)}
-                className="text-sm text-blue-600 hover:text-blue-800 underline"
-              >
-                Password dimenticata?
-              </button>
-            </div>
-
-            <div className="text-center mt-4">
-              <p className="text-sm text-gray-600">
-                Non hai un account?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSignUp(true);
-                    setError('');
-                    setUsername('');
-                    setPassword('');
-                  }}
-                  className="text-blue-600 hover:text-blue-800 font-semibold underline"
-                >
-                  Registrati
-                </button>
-              </p>
-            </div>
-          </form>
-        ) : (
-          <form onSubmit={handleSignUp} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nome Utente</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Scegli un nome utente"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Inserisci email"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Crea una password (min. 6 caratteri)"
-                required
-                minLength={6}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Conferma Password</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Ripeti la password"
-                required
-              />
-            </div>
-            
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
-                {success}
-              </div>
-            )}
-            
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-            >
-              Registrati
-            </button>
-
-            <div className="text-center mt-4">
-              <p className="text-sm text-gray-600">
-                Hai già un account?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSignUp(false);
-                    setError('');
-                    setSuccess('');
-                    setUsername('');
-                    setPassword('');
-                    setEmail('');
-                    setConfirmPassword('');
-                  }}
-                  className="text-blue-600 hover:text-blue-800 font-semibold underline"
-                >
-                  Accedi
-                </button>
-              </p>
-            </div>
-          </form>
-        )}
-        
-        {!isSignUp && (
-          <div className="mt-6 pt-4 border-t border-gray-200">
-            <p className="text-xs text-gray-500 text-center">
-              💡 <strong>Primo accesso?</strong> Usa le credenziali admin predefinite:<br/>
-              Username: <code className="bg-gray-100 px-1 rounded">admin</code> | Password: <code className="bg-gray-100 px-1 rounded">admin2024</code>
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function AdminPanel({ users, addUser, deleteUser, updateUserPassword }: { users: AuthUser[]; addUser: (username: string, password: string, email: string) => void; deleteUser: (username: string) => void; updateUserPassword: (username: string, newPassword: string) => void }) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ username: '', password: '', email: '' });
-  const [resetPasswordUser, setResetPasswordUser] = useState<string | null>(null);
-  const [newPassword, setNewPassword] = useState('');
-  const [newUserCreated, setNewUserCreated] = useState<{ username: string; password: string; email: string } | null>(null);
-
-  const handleAdd = () => {
-    if (!form.username || !form.password || !form.email) {
-      alert('Compila tutti i campi');
-      return;
-    }
-    addUser(form.username, form.password, form.email);
-    setNewUserCreated({ ...form });
-    setForm({ username: '', password: '', email: '' });
-    setShowAdd(false);
-  };
-
-  const handleResetPassword = () => {
-    if (!newPassword) {
-      alert('Inserisci una nuova password');
-      return;
-    }
-    if (resetPasswordUser) {
-      updateUserPassword(resetPasswordUser, newPassword);
-      setResetPasswordUser(null);
-      setNewPassword('');
-      alert('Password aggiornata con successo');
-    }
-  };
-
-  return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Gestione Utenti</h2>
-        <button className="btn btn-primary" onClick={() => setShowAdd(!showAdd)}>
-          <UserPlus size={18} /> Aggiungi Utente
-        </button>
-      </div>
-
-      {showAdd && (
-        <div className="card grid sm:grid-cols-3 gap-3">
-          <div>
-            <label className="text-sm text-gray-600">Nome Utente</label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 border rounded-lg"
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="text-sm text-gray-600">Password</label>
-            <input
-              type="password"
-              className="w-full px-3 py-2 border rounded-lg"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="text-sm text-gray-600">Email</label>
-            <input
-              type="email"
-              className="w-full px-3 py-2 border rounded-lg"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-            />
-          </div>
-          <div className="sm:col-span-3 flex gap-2">
-            <button className="btn btn-primary" onClick={handleAdd}>Salva</button>
-            <button className="btn btn-ghost" onClick={() => setShowAdd(false)}>Annulla</button>
-          </div>
-        </div>
-      )}
-
-      <div className="card">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left py-3 px-4">Nome Utente</th>
-              <th className="text-left py-3 px-4">Email</th>
-              <th className="text-left py-3 px-4">Ruolo</th>
-              <th className="text-right py-3 px-4">Azioni</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr key={user.username} className="border-b hover:bg-gray-50">
-                <td className="py-3 px-4">{user.username}</td>
-                <td className="py-3 px-4">{user.email}</td>
-                <td className="py-3 px-4">
-                  <span className={`badge ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>
-                    {user.role === 'admin' ? 'Admin' : 'Utente'}
-                  </span>
-                </td>
-                <td className="py-3 px-4 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      className="text-blue-600 hover:text-blue-800"
-                      onClick={() => {
-                        setResetPasswordUser(user.username);
-                        setNewPassword('');
-                      }}
-                      title="Reset Password"
-                    >
-                      <Key size={18} />
-                    </button>
-                    {user.role !== 'admin' && (
-                      <button
-                        className="text-red-600 hover:text-red-800"
-                        onClick={() => {
-                          if (confirm(`Eliminare utente ${user.username}?`)) {
-                            deleteUser(user.username);
-                          }
-                        }}
-                      >
-                        <Trash size={18} />
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {resetPasswordUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Reset Password - {resetPasswordUser}</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nuova Password</label>
-                <input
-                  type="password"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Inserisci nuova password"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button className="btn btn-primary flex-1" onClick={handleResetPassword}>
-                  <Key size={18} /> Aggiorna Password
-                </button>
-                <button className="btn btn-ghost" onClick={() => {
-                  setResetPasswordUser(null);
-                  setNewPassword('');
-                }}>
-                  Annulla
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {newUserCreated && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
-            <h3 className="text-lg font-semibold mb-4">✅ Utente Creato - Invia Credenziali</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Copia il testo qui sotto e invialo via email all'utente:
-            </p>
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-              <pre className="text-sm whitespace-pre-wrap font-mono">
-{`Oggetto: Credenziali di accesso - Seguro Calcio U19
-
-Ciao,
-
-Sei stato aggiunto al sistema di gestione della squadra Seguro Calcio U19.
-
-Ecco le tue credenziali di accesso:
-
-🔐 Nome Utente: ${newUserCreated.username}
-🔑 Password: ${newUserCreated.password}
-
-🌐 Link di accesso: ${window.location.origin}
-
-Per la tua sicurezza, ti consigliamo di cambiare la password al primo accesso contattando l'amministratore.
-
-Saluti,
-Team Seguro Calcio U19`}
-              </pre>
-            </div>
-            <div className="flex gap-2">
-              <button 
-                className="btn btn-primary flex-1"
-                onClick={() => {
-                  const emailText = `Oggetto: Credenziali di accesso - Seguro Calcio U19\n\nCiao,\n\nSei stato aggiunto al sistema di gestione della squadra Seguro Calcio U19.\n\nEcco le tue credenziali di accesso:\n\n🔐 Nome Utente: ${newUserCreated.username}\n🔑 Password: ${newUserCreated.password}\n\n🌐 Link di accesso: ${window.location.origin}\n\nPer la tua sicurezza, ti consigliamo di cambiare la password al primo accesso contattando l'amministratore.\n\nSaluti,\nTeam Seguro Calcio U19`;
-                  navigator.clipboard.writeText(emailText);
-                  alert('Testo copiato negli appunti! Ora puoi incollarlo nella tua email.');
-                }}
-              >
-                📋 Copia Testo
-              </button>
-              <button className="btn btn-ghost" onClick={() => setNewUserCreated(null)}>
-                Chiudi
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
   );
 }

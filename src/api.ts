@@ -1,6 +1,4 @@
 import {
-  INITIAL_AUTH_DATA,
-  INITIAL_AUTH_USERS,
   INITIAL_CALLUP,
   INITIAL_FORMATION,
   INITIAL_MATCHES,
@@ -10,7 +8,6 @@ import {
 } from './initialData';
 import type {
   AppSettings,
-  AuthUser,
   CallUpData,
   CallUpRecord,
   FormationData,
@@ -183,8 +180,6 @@ const sanitizeFormationForRequest = (formation: FormationData): FormationData =>
   substitutes: formation.substitutes ? [...formation.substitutes] : [null, null, null, null, null, null, null, null, null],
 });
 
-const sanitizeUsers = (users: AuthUser[]): AuthUser[] => users.map(({ password, ...rest }) => rest);
-
 export const api = {
   players: {
     getAll: async (): Promise<Player[]> => {
@@ -334,45 +329,6 @@ export const api = {
       return clone(updated);
     },
   },
-  auth: {
-    login: async (username: string, password: string) => {
-      const response = await request<{ success: boolean; user?: AuthUser }>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-      });
-      if (response.success && response.user) {
-        return { success: true, user: response.user };
-      }
-      return { success: false };
-    },
-    getUsers: async (): Promise<AuthUser[]> => {
-      try {
-        const users = await request<AuthUser[]>('/auth/users');
-        return sanitizeUsers(users);
-      } catch (error) {
-        console.error('Failed to load users from API, falling back to initial admin user:', error);
-        return INITIAL_AUTH_DATA.users;
-      }
-    },
-    createUser: async (username: string, password: string, email: string): Promise<AuthUser> => {
-      const created = await request<AuthUser>('/auth/users', {
-        method: 'POST',
-        body: JSON.stringify({ username, password, email }),
-      });
-      return created;
-    },
-    deleteUser: async (username: string): Promise<void> => {
-      await request<void>(`/auth/users/${encodeURIComponent(username)}`, {
-        method: 'DELETE',
-      });
-    },
-    updatePassword: async (username: string, newPassword: string): Promise<void> => {
-      await request(`/auth/users/${encodeURIComponent(username)}/password`, {
-        method: 'PUT',
-        body: JSON.stringify({ newPassword }),
-      });
-    },
-  },
   utils: {
     resetAll: async () => {
       const state = await request<{
@@ -383,7 +339,6 @@ export const api = {
         callup: CallUpRecord | null;
         formation: FormationRecord | null;
         settings: AppSettings;
-        users: AuthUser[];
       }>('/utils/reset', {
         method: 'POST',
       });
@@ -396,7 +351,6 @@ export const api = {
         callup: state.callup ? clone(normaliseCallup(state.callup)) : null,
         formation: state.formation ? clone(normaliseFormation(state.formation)) : null,
         settings: clone(state.settings ?? INITIAL_SETTINGS),
-        users: sanitizeUsers(state.users ?? INITIAL_AUTH_USERS),
       };
     },
   },
