@@ -24,6 +24,15 @@ const SALT_ROUNDS = 10;
 app.use(cors());
 app.use(express.json());
 
+app.use(async (_req, _res, next) => {
+  try {
+    await getSchemaReadyPromise();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 const LEGACY_API_PREFIXES = [
   '/players',
   '/trainings',
@@ -316,13 +325,18 @@ app.post('/api/utils/reset', async (req, res) => {
       await tx.execute(sql`ALTER SEQUENCE app_settings_id_seq RESTART WITH 1`);
 
       if (INITIAL_PLAYERS.length > 0) {
-        await tx.insert(players).values(INITIAL_PLAYERS.map((player: any) => ({
-          ...player,
-          goals: player.goals ?? 0,
-          presences: player.presences ?? 0,
-          yellowCards: player.yellowCards ?? 0,
-          redCards: player.redCards ?? 0,
-        })));
+        await tx.insert(players).values(
+          INITIAL_PLAYERS.map((player: any) => {
+            const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = player;
+            return {
+              ...rest,
+              goals: player.goals ?? 0,
+              presences: player.presences ?? 0,
+              yellowCards: player.yellowCards ?? 0,
+              redCards: player.redCards ?? 0,
+            };
+          }),
+        );
       }
 
       for (const week of INITIAL_TRAINING_WEEKS) {
