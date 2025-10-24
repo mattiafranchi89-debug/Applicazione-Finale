@@ -106,8 +106,6 @@ const normalisePositionLabel = (value: string): Player['position'] => {
   return 'Attaccante';
 };
 
-const DEFAULT_BIRTH_YEAR = 2007;
-
 const itDate = (iso:string, opts?:Intl.DateTimeFormatOptions) => new Date(iso).toLocaleDateString('it-IT', opts);
 
 export default function App(){
@@ -535,10 +533,8 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
       }
 
       const headerRow: string[] = rows[0].map((cell) => String(cell ?? '').trim().toLowerCase());
-      const requiredHeaders = ['nome', 'cognome'] as const;
-      const optionalHeaders = ['ruolo', 'anno'] as const;
-      type HeaderKey = (typeof requiredHeaders)[number] | (typeof optionalHeaders)[number];
-      const columnIndex: Record<HeaderKey, number> = {
+      const requiredHeaders = ['nome', 'cognome', 'ruolo', 'anno'] as const;
+      const columnIndex: Record<(typeof requiredHeaders)[number], number> = {
         nome: -1,
         cognome: -1,
         ruolo: -1,
@@ -553,19 +549,11 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
         columnIndex[header] = index;
       });
 
-      optionalHeaders.forEach((header) => {
-        const index = headerRow.findIndex((value) => value === header);
-        if (index !== -1) {
-          columnIndex[header] = index;
-        }
-      });
-
       const existingKeys = new Set(players.map((p) => `${p.firstName.toLowerCase()}|${p.lastName.toLowerCase()}`));
       let nextNumber = players.length > 0 ? Math.max(...players.map((p) => p.number)) : 0;
-      const skippedRows: Array<{ row: number; reason: string }> = [];
+      const duplicateRows: number[] = [];
+      const invalidRows: number[] = [];
       const createdPlayers: Player[] = [];
-      let defaultedPositions = 0;
-      let defaultedYears = 0;
 
       for (let i = 1; i < rows.length; i += 1) {
         const row = rows[i];
@@ -574,42 +562,23 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
         const rowNumber = i + 1; // Excel rows are 1-indexed and include header
         const firstName = String(row[columnIndex.nome] ?? '').trim();
         const lastName = String(row[columnIndex.cognome] ?? '').trim();
-        const roleValue = columnIndex.ruolo >= 0 ? String(row[columnIndex.ruolo] ?? '').trim() : '';
-        const yearValue = columnIndex.anno >= 0 ? String(row[columnIndex.anno] ?? '').trim() : '';
+        const roleValue = String(row[columnIndex.ruolo] ?? '').trim();
+        const yearValue = String(row[columnIndex.anno] ?? '').trim();
 
-        const missingFields: string[] = [];
-        if (!firstName) missingFields.push('Nome');
-        if (!lastName) missingFields.push('Cognome');
-
-        if (missingFields.length > 0) {
-          skippedRows.push({
-            row: rowNumber,
-            reason: `Campi obbligatori mancanti: ${missingFields.join(', ')}.`,
-          });
+        if (!firstName || !lastName || !roleValue || !yearValue) {
+          invalidRows.push(rowNumber);
           continue;
         }
 
-        let birthYear = DEFAULT_BIRTH_YEAR;
-        let usedDefaultYear = false;
-        if (yearValue) {
-          birthYear = Number.parseInt(yearValue, 10);
-          if (!Number.isFinite(birthYear)) {
-            skippedRows.push({
-              row: rowNumber,
-              reason: `Anno non valido: "${yearValue}".`,
-            });
-            continue;
-          }
-        } else {
-          usedDefaultYear = true;
+        const birthYear = Number.parseInt(yearValue, 10);
+        if (!Number.isFinite(birthYear)) {
+          invalidRows.push(rowNumber);
+          continue;
         }
 
         const key = `${firstName.toLowerCase()}|${lastName.toLowerCase()}`;
         if (existingKeys.has(key)) {
-          skippedRows.push({
-            row: rowNumber,
-            reason: `${firstName} ${lastName} è già presente nella rosa.`,
-          });
+          duplicateRows.push(rowNumber);
           continue;
         }
 
@@ -629,18 +598,9 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
           createdPlayers.push(created);
           nextNumber = created.number ?? (nextNumber + 1);
           existingKeys.add(key);
-          if (!roleValue) {
-            defaultedPositions += 1;
-          }
-          if (usedDefaultYear) {
-            defaultedYears += 1;
-          }
         } catch (error) {
           console.error('Errore durante la creazione del giocatore importato:', error);
-          skippedRows.push({
-            row: rowNumber,
-            reason: 'Errore durante il salvataggio del giocatore. Riprova più tardi.',
-          });
+          invalidRows.push(rowNumber);
         }
       }
 
@@ -649,21 +609,11 @@ function PlayersTab({players,setPlayers,getPlayerTotalMinutes,getPlayerAttendanc
       }
 
       const summary: string[] = [`Importati ${createdPlayers.length} giocatori.`];
-      if (defaultedPositions > 0 || defaultedYears > 0) {
-        const parts: string[] = [];
-        if (defaultedPositions > 0) {
-          parts.push(`${defaultedPositions} ruoli impostati come "Attaccante"`);
-        }
-        if (defaultedYears > 0) {
-          parts.push(`${defaultedYears} anni impostati a ${DEFAULT_BIRTH_YEAR}`);
-        }
-        summary.push(`Valori mancanti completati automaticamente (${parts.join(', ')}).`);
+      if (duplicateRows.length > 0) {
+        summary.push(`Ignorate ${duplicateRows.length} righe già presenti (righe: ${duplicateRows.join(', ')}).`);
       }
-      if (skippedRows.length > 0) {
-        summary.push('Righe scartate:');
-        skippedRows.forEach(({ row, reason }) => {
-          summary.push(`- Riga ${row}: ${reason}`);
-        });
+      if (invalidRows.length > 0) {
+        summary.push(`Scartate ${invalidRows.length} righe con dati mancanti o non validi (righe: ${invalidRows.join(', ')}).`);
       }
       alert(summary.join('\n'));
     } catch (error) {
