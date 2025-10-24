@@ -6,7 +6,7 @@ import {
   INITIAL_TRAINING_WEEKS,
 } from '../shared/initialData';
 
-async function seedData() {
+export async function seedData() {
   console.log('🌱 Seeding application data...');
 
   const existingPlayers = await db.select().from(players);
