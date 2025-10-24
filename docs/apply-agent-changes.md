@@ -12,17 +12,7 @@ Questi passaggi spiegano come allineare il tuo repository locale allo stato prod
    ```
    Se il comando mostra file "modified" o "untracked", effettua un commit oppure salva i file da parte (`git stash` o una copia manuale).
 
-## 2. Scaricare il pacchetto di modifiche
-Hai due modi per ottenere i file aggiornati.
-
-### Opzione A – usare la patch pronta
-1. Scarica il file `docs/ensure-admin-account-update.patch` (è stato generato dall'agente). Se hai già clonato il repository dell'agente ti basta copiare quel file nella root del tuo progetto. In alternativa puoi salvarlo come testo grezzo dal PR / dall'allegato e posizionarlo come `ensure-admin-account-update.patch` nella root del tuo repository.
-2. Applica la patch:
-   ```bash
-   git apply ensure-admin-account-update.patch
-   ```
-
-### Opzione B – collegarsi direttamente al branch dell'agente
+## 2. Collegarsi al branch dell'agente
 1. Aggiungi un remote temporaneo che punti al repository generato dall'agente (sostituisci `<URL_AGENT>` con l'URL reale, ad esempio quello del fork usato per la PR):
    ```bash
    git remote add agent <URL_AGENT>
