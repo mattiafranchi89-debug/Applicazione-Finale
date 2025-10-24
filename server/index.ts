@@ -1,11 +1,9 @@
 import express from 'express';
 import cors from 'cors';
-import bcrypt from 'bcrypt';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { db } from './db.js';
-import { users, players, trainings, matches, callups, formations, appSettings } from '../shared/schema.js';
-import { ensureAdminUser } from './admin.js';
+import { players, trainings, matches, callups, formations, appSettings } from '../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
 import {
   INITIAL_CALLUP,
@@ -21,29 +19,206 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
-const SALT_ROUNDS = 10;
 
-ensureAdminUser({
-  forceReset: process.env.ADMIN_FORCE_RESET === 'true' || Boolean(process.env.ADMIN_PASSWORD),
-})
-  .then((result) => {
-    if (result.action === 'created') {
-      console.log(`👤 Admin user created (${result.username}).`);
-    } else if (result.action === 'updated') {
-      console.log(`👤 Admin user updated (${result.username}) — ${result.updatedFields.join(', ')}.`);
-    } else {
-      console.log(`👤 Admin user already configured (${result.username}).`);
+const ensureTables = async () => {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS players (
+      id SERIAL PRIMARY KEY,
+      number INTEGER NOT NULL,
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
+      position TEXT NOT NULL,
+      birth_year INTEGER NOT NULL,
+      goals INTEGER NOT NULL DEFAULT 0,
+      presences INTEGER NOT NULL DEFAULT 0,
+      yellow_cards INTEGER NOT NULL DEFAULT 0,
+      red_cards INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS trainings (
+      id SERIAL PRIMARY KEY,
+      week_number INTEGER NOT NULL,
+      week_label TEXT NOT NULL,
+      sessions JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS matches (
+      id SERIAL PRIMARY KEY,
+      round INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      time TEXT NOT NULL,
+      home TEXT NOT NULL,
+      away TEXT NOT NULL,
+      address TEXT NOT NULL DEFAULT '',
+      city TEXT NOT NULL DEFAULT '',
+      result TEXT,
+      events JSONB DEFAULT '[]'::jsonb,
+      minutes JSONB DEFAULT '{}'::jsonb,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS callups (
+      id SERIAL PRIMARY KEY,
+      opponent TEXT NOT NULL DEFAULT '',
+      date TEXT NOT NULL DEFAULT '',
+      meeting_time TEXT NOT NULL DEFAULT '',
+      kickoff_time TEXT NOT NULL DEFAULT '',
+      location TEXT NOT NULL DEFAULT '',
+      is_home BOOLEAN NOT NULL DEFAULT TRUE,
+      selected_players JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS formations (
+      id SERIAL PRIMARY KEY,
+      module TEXT NOT NULL DEFAULT '4-3-3',
+      positions JSONB NOT NULL DEFAULT '{}'::jsonb,
+      substitutes JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      id SERIAL PRIMARY KEY,
+      selected_week INTEGER NOT NULL DEFAULT 1,
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+};
+
+const seedInitialDataIfNeeded = async () => {
+  await db.transaction(async (tx) => {
+    const [playerCount] = await tx.select({ value: sql<number>`count(*)` }).from(players);
+    if (!playerCount || Number(playerCount.value) === 0) {
+      if (INITIAL_PLAYERS.length > 0) {
+        await tx.insert(players).values(
+          INITIAL_PLAYERS.map((player: any) => {
+            const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = player;
+            return {
+              ...rest,
+            goals: player.goals ?? 0,
+            presences: player.presences ?? 0,
+            yellowCards: player.yellowCards ?? 0,
+            redCards: player.redCards ?? 0,
+            };
+          }),
+        );
+      }
     }
-  })
-  .catch((error) => {
-    console.error('❌ Unable to ensure admin user exists:', error);
+
+    const [trainingCount] = await tx.select({ value: sql<number>`count(*)` }).from(trainings);
+    if (!trainingCount || Number(trainingCount.value) === 0) {
+      if (INITIAL_TRAINING_WEEKS.length > 0) {
+        await tx.insert(trainings).values(
+          INITIAL_TRAINING_WEEKS.map((week) => ({
+            weekNumber: week.weekNumber,
+            weekLabel: week.weekLabel,
+            sessions: week.sessions,
+          })),
+        );
+      }
+    }
+
+    const [matchCount] = await tx.select({ value: sql<number>`count(*)` }).from(matches);
+    if (!matchCount || Number(matchCount.value) === 0) {
+      if (INITIAL_MATCHES.length > 0) {
+        await tx.insert(matches).values(
+          INITIAL_MATCHES.map((match) => ({
+            round: match.round,
+            date: match.date,
+            time: match.time,
+            home: match.home,
+            away: match.away,
+            address: match.address ?? '',
+            city: match.city ?? '',
+            result: match.result ?? null,
+            events: Array.isArray(match.events) ? match.events : [],
+            minutes: match.minutes ?? {},
+          })),
+        );
+      }
+    }
+
+    const [callupCount] = await tx.select({ value: sql<number>`count(*)` }).from(callups);
+    if (!callupCount || Number(callupCount.value) === 0) {
+      await tx.insert(callups).values({
+        opponent: INITIAL_CALLUP.opponent,
+        date: INITIAL_CALLUP.date,
+        meetingTime: INITIAL_CALLUP.meetingTime,
+        kickoffTime: INITIAL_CALLUP.kickoffTime,
+        location: INITIAL_CALLUP.location,
+        isHome: INITIAL_CALLUP.isHome,
+        selectedPlayers: Array.isArray(INITIAL_CALLUP.selectedPlayers)
+          ? INITIAL_CALLUP.selectedPlayers
+          : [],
+      });
+    }
+
+    const [formationCount] = await tx.select({ value: sql<number>`count(*)` }).from(formations);
+    if (!formationCount || Number(formationCount.value) === 0) {
+      await tx.insert(formations).values({
+        module: INITIAL_FORMATION.module,
+        positions: INITIAL_FORMATION.positions ?? {},
+        substitutes: INITIAL_FORMATION.substitutes ?? [],
+      });
+    }
+
+    const [settingsCount] = await tx.select({ value: sql<number>`count(*)` }).from(appSettings);
+    if (!settingsCount || Number(settingsCount.value) === 0) {
+      await tx.insert(appSettings).values({
+        selectedWeek: INITIAL_SETTINGS.selectedWeek,
+      });
+    }
   });
+};
+
+const ensureSchemaReady = async () => {
+  await ensureTables();
+  await seedInitialDataIfNeeded();
+};
+
+let schemaReadyPromise: Promise<void> | null = null;
+
+const getSchemaReadyPromise = () => {
+  if (!schemaReadyPromise) {
+    schemaReadyPromise = ensureSchemaReady().catch((error) => {
+      schemaReadyPromise = null;
+      throw error;
+    });
+  }
+  return schemaReadyPromise;
+};
+
+await getSchemaReadyPromise().catch((error) => {
+  console.error('Failed to prepare database schema:', error);
+});
 
 app.use(cors());
 app.use(express.json());
 
+app.use(async (_req, _res, next) => {
+  try {
+    await getSchemaReadyPromise();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 const LEGACY_API_PREFIXES = [
-  '/auth',
   '/players',
   '/trainings',
   '/matches',
@@ -61,73 +236,6 @@ app.use((req, _res, next) => {
     }
   }
   next();
-});
-
-// Helper to remove password from user object
-const sanitizeUser = (user: any) => {
-  if (!user) return null;
-  const { password, ...sanitized } = user;
-  return sanitized;
-};
-
-// Auth API
-app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-  const [user] = await db.select().from(users).where(eq(users.username, username));
-  
-  if (user && await bcrypt.compare(password, user.password)) {
-    res.json({ success: true, user: sanitizeUser(user) });
-  } else {
-    res.status(401).json({ success: false, message: 'Credenziali non valide' });
-  }
-});
-
-app.get('/api/auth/users', async (req, res) => {
-  const allUsers = await db.select().from(users);
-  res.json(allUsers.map(sanitizeUser));
-});
-
-app.post('/api/auth/users', async (req, res) => {
-  try {
-    const { username, password, email } = req.body;
-    
-    // Check if username already exists
-    const [existingUser] = await db.select().from(users).where(eq(users.username, username));
-    if (existingUser) {
-      return res.status(400).json({ error: 'Username già in uso. Scegline un altro.' });
-    }
-    
-    // First user becomes admin, rest are 'user'
-    const allUsers = await db.select().from(users);
-    const role = allUsers.length === 0 ? 'admin' : 'user';
-    
-    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-    const [newUser] = await db.insert(users).values({ username, password: hashedPassword, email, role }).returning();
-    res.json(sanitizeUser(newUser));
-  } catch (error) {
-    console.error('Error creating user:', error);
-    res.status(500).json({ error: 'Errore interno del server' });
-  }
-});
-
-app.delete('/api/auth/users/:username', async (req, res) => {
-  await db.delete(users).where(eq(users.username, req.params.username));
-  res.json({ success: true });
-});
-
-app.put('/api/auth/users/:username/password', async (req, res) => {
-  const { newPassword } = req.body;
-  const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
-  const [updated] = await db.update(users)
-    .set({ password: hashedPassword })
-    .where(eq(users.username, req.params.username))
-    .returning();
-  
-  if (!updated) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-  
-  res.json(sanitizeUser(updated));
 });
 
 // Helper to convert camelCase to snake_case for database
@@ -329,13 +437,18 @@ app.post('/api/utils/reset', async (req, res) => {
       await tx.execute(sql`ALTER SEQUENCE app_settings_id_seq RESTART WITH 1`);
 
       if (INITIAL_PLAYERS.length > 0) {
-        await tx.insert(players).values(INITIAL_PLAYERS.map((player: any) => ({
-          ...player,
-          goals: player.goals ?? 0,
-          presences: player.presences ?? 0,
-          yellowCards: player.yellowCards ?? 0,
-          redCards: player.redCards ?? 0,
-        })));
+        await tx.insert(players).values(
+          INITIAL_PLAYERS.map((player: any) => {
+            const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = player;
+            return {
+              ...rest,
+              goals: player.goals ?? 0,
+              presences: player.presences ?? 0,
+              yellowCards: player.yellowCards ?? 0,
+              redCards: player.redCards ?? 0,
+            };
+          }),
+        );
       }
 
       for (const week of INITIAL_TRAINING_WEEKS) {
@@ -399,7 +512,6 @@ app.post('/api/utils/reset', async (req, res) => {
     const callupsData = await db.select().from(callups);
     const formationsData = await db.select().from(formations).orderBy(desc(formations.updatedAt));
     const [settingsData] = await db.select().from(appSettings).limit(1);
-    const usersData = await db.select().from(users);
 
     res.json({
       players: playersData,
@@ -409,7 +521,6 @@ app.post('/api/utils/reset', async (req, res) => {
       callup: callupRow,
       formation: formationsData[0] ?? formationRow,
       settings: settingsData ?? settingsRow,
-      users: usersData.map(sanitizeUser).filter(Boolean),
     });
   } catch (error) {
     console.error('Failed to reset data:', error);
