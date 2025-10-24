@@ -53,11 +53,10 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Helper to remove password from user object
-const sanitizeUser = (user: any) => {
-  if (!user) return null;
-  const { password, ...sanitized } = user;
-  return sanitized;
+const toInteger = (value: unknown) => {
+  if (value === null || value === undefined) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
 };
 
 // Auth API
@@ -76,75 +75,63 @@ app.post('/api/auth/login', async (req, res) => {
   } else {
     res.status(401).json({ success: false, message: 'Credenziali non valide' });
   }
-});
 
-app.get('/api/auth/users', async (req, res) => {
-  const allUsers = await db.select().from(users);
-  res.json(allUsers.map(sanitizeUser));
-});
+  if (rest.lastName !== undefined) {
+    const lastName = String(rest.lastName).trim();
+    if (lastName) normalised.lastName = lastName;
+  }
 
-app.post('/api/auth/users', async (req, res) => {
-  try {
-    const { username, password, email } = req.body;
-    
-    // Check if username already exists
-    const [existingUser] = await db.select().from(users).where(eq(users.username, username));
-    if (existingUser) {
-      return res.status(400).json({ error: 'Username già in uso. Scegline un altro.' });
+  if (rest.position !== undefined) {
+    const position = String(rest.position).trim();
+    if (position) normalised.position = position;
+  }
+
+  if (rest.number !== undefined) {
+    const number = toInteger(rest.number);
+    if (number !== undefined && number > 0) normalised.number = number;
+  }
+
+  if (rest.birthYear !== undefined) {
+    const birthYear = toInteger(rest.birthYear);
+    if (birthYear !== undefined && birthYear >= 1900 && birthYear <= 2100) {
+      normalised.birthYear = birthYear;
     }
-    
-    // First user becomes admin, rest are 'user'
-    const allUsers = await db.select().from(users);
-    const role = allUsers.length === 0 ? 'admin' : 'user';
-    
-    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-    const [newUser] = await db.insert(users).values({ username, password: hashedPassword, email, role }).returning();
-    res.json(sanitizeUser(newUser));
-  } catch (error) {
-    console.error('Error creating user:', error);
-    res.status(500).json({ error: 'Errore interno del server' });
   }
-});
 
-app.delete('/api/auth/users/:username', async (req, res) => {
-  await db.delete(users).where(eq(users.username, req.params.username));
-  res.json({ success: true });
-});
-
-app.put('/api/auth/users/:username/password', async (req, res) => {
-  const { newPassword } = req.body;
-  const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
-  const [updated] = await db.update(users)
-    .set({ password: hashedPassword })
-    .where(eq(users.username, req.params.username))
-    .returning();
-  
-  if (!updated) {
-    return res.status(404).json({ error: 'User not found' });
+  if (rest.goals !== undefined) {
+    const goals = toInteger(rest.goals) ?? 0;
+    normalised.goals = Math.max(0, goals);
   }
-  
-  res.json(sanitizeUser(updated));
-});
 
-// Helper to convert camelCase to snake_case for database
-const camelToSnake = (obj: any) => {
-  const snakeObj: any = {};
-  for (const key in obj) {
-    const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-    snakeObj[snakeKey] = obj[key];
+  if (rest.presences !== undefined) {
+    const presences = toInteger(rest.presences) ?? 0;
+    normalised.presences = Math.max(0, presences);
   }
-  return snakeObj;
+
+  if (rest.yellowCards !== undefined) {
+    const yellowCards = toInteger(rest.yellowCards) ?? 0;
+    normalised.yellowCards = Math.max(0, yellowCards);
+  }
+
+  if (rest.redCards !== undefined) {
+    const redCards = toInteger(rest.redCards) ?? 0;
+    normalised.redCards = Math.max(0, redCards);
+  }
+
+  return normalised;
 };
 
-// Helper to convert snake_case to camelCase for API responses
-const snakeToCamel = (obj: any) => {
-  const camelObj: any = {};
-  for (const key in obj) {
-    const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-    camelObj[camelKey] = obj[key];
-  }
-  return camelObj;
-};
+const DEFAULT_BIRTH_YEAR = 2007;
+
+const withPlayerDefaults = (payload: Partial<InsertPlayer>) => ({
+  goals: 0,
+  presences: 0,
+  yellowCards: 0,
+  redCards: 0,
+  position: 'Attaccante',
+  birthYear: DEFAULT_BIRTH_YEAR,
+  ...payload,
+}) as InsertPlayer;
 
 const sanitizeMatchPayload = (payload: any) => {
   if (!payload) return payload;
@@ -158,37 +145,87 @@ const sanitizeMatchPayload = (payload: any) => {
 };
 
 // Players API
-app.get('/api/players', async (req, res) => {
-  const allPlayers = await db.select().from(players);
-  res.json(allPlayers);
+app.get('/api/players', async (_req, res) => {
+  try {
+    let allPlayers = await db.select().from(players);
+
+    if (allPlayers.length === 0 && INITIAL_PLAYERS.length > 0) {
+      await seedInitialDataIfNeeded();
+      allPlayers = await db.select().from(players);
+    }
+
+    res.json(allPlayers);
+  } catch (error) {
+    console.error('Failed to fetch players:', error);
+    res.status(500).json({ error: 'Failed to fetch players' });
+  }
 });
 
 app.post('/api/players', async (req, res) => {
-  // Drizzle handles camelCase to snake_case conversion automatically
-  const [newPlayer] = await db.insert(players).values(req.body).returning();
-  res.json(newPlayer);
+  try {
+    const payload = normalisePlayerPayload(req.body);
+
+    if (!payload.firstName || !payload.lastName) {
+      return res.status(400).json({ error: 'Nome e cognome sono obbligatori' });
+    }
+
+    if (payload.number === undefined) {
+      return res.status(400).json({ error: 'Numero maglia obbligatorio' });
+    }
+
+    if (payload.birthYear === undefined) {
+      payload.birthYear = DEFAULT_BIRTH_YEAR;
+    }
+
+    const [newPlayer] = await db
+      .insert(players)
+      .values(withPlayerDefaults(payload))
+      .returning();
+
+    res.status(201).json(newPlayer);
+  } catch (error) {
+    console.error('Failed to create player:', error);
+    res.status(500).json({ error: 'Impossibile creare il giocatore' });
+  }
 });
 
 app.put('/api/players/:id', async (req, res) => {
   try {
-    if (!req.body || Object.keys(req.body).length === 0) {
-      return res.status(400).json({ error: 'No data provided' });
+    const playerId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(playerId)) {
+      return res.status(400).json({ error: 'Identificativo giocatore non valido' });
     }
-    
-    // Drizzle handles camelCase to snake_case conversion automatically
-    const [updated] = await db.update(players)
-      .set(req.body)
-      .where(eq(players.id, parseInt(req.params.id)))
+
+    const patch = normalisePlayerPayload(req.body);
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: 'Nessun dato fornito per l\'aggiornamento' });
+    }
+
+    let [updated] = await db
+      .update(players)
+      .set(patch)
+      .where(eq(players.id, playerId))
       .returning();
-    
+
     if (!updated) {
-      return res.status(404).json({ error: 'Player not found' });
+      await seedInitialDataIfNeeded();
+
+      [updated] = await db
+        .update(players)
+        .set(patch)
+        .where(eq(players.id, playerId))
+        .returning();
     }
-    
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Giocatore non trovato' });
+    }
+
     res.json(updated);
   } catch (error) {
     console.error('Error updating player:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Errore interno durante l\'aggiornamento del giocatore' });
   }
 });
 
